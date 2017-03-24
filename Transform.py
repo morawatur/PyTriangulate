@@ -78,7 +78,8 @@ def RotateAndMagnifyWrapper(img, todo='mr', factor=1.0, angle=0.0):
 #-------------------------------------------------------------------
 
 def DetermineCropCoordsAfterSkiRotation(oldDim, angle):
-    newDim = oldDim / (np.cos(imsup.Radians(angle)) + np.sin(imsup.Radians(angle)))
+    radAngle = imsup.Radians(np.abs(angle) % 45)
+    newDim = oldDim / (np.cos(radAngle) + np.sin(radAngle))
     start = (oldDim - newDim) / 2.0
     end = oldDim - start
     cropCoords = [int(np.ceil(start))] * 2 + [int(np.floor(end))] * 2
@@ -86,14 +87,80 @@ def DetermineCropCoordsAfterSkiRotation(oldDim, angle):
 
 #-------------------------------------------------------------------
 
-def RotateImageSki2(img, angle):
+def RotateImageSki2(img, angle, cut=False):
     imgRot = RotateAndMagnifyWrapper(img, 'r', angle=angle)
     imsup.SaveAmpImage(imgRot, 'img2_rot.png')
-    cropCoords = DetermineCropCoordsAfterSkiRotation(img.width, angle)
-    imgRotCrop = imsup.CropImageROICoords(imgRot, cropCoords)
-    return imgRotCrop
+    if cut:     # wycinanie zle dziala
+        cropCoords = DetermineCropCoordsAfterSkiRotation(img.width, angle)
+        imgRot = imsup.CropImageROICoords(imgRot, cropCoords)
+    return imgRot
 
 #-------------------------------------------------------------------
 
 def RescaleImageSki2(img, factor):
     return RotateAndMagnifyWrapper(img, 'm', factor=factor)
+
+#-------------------------------------------------------------------
+
+class Line:
+    def __init__(self, a_coeff, b_coeff):
+        self.a = a_coeff
+        self.b = b_coeff
+
+    def getFromPoints(self, p1, p2):
+        self.a = (p2[1] - p1[1]) / (p2[0] - p1[0])
+        self.b = p1[1] - self.a * p1[0]
+
+    def getFromDirCoeffAndPoint(self, a_coeff, p1):
+        self.a = a_coeff
+        self.b = p1[1] - self.a * p1[0]
+
+# -------------------------------------------------------------------
+
+def FindPerpendicularLine(line, point):
+    linePerp = Line(-1 / line.a, 0)
+    linePerp.getFromDirCoeffAndPoint(linePerp.a, point)
+    return linePerp
+
+#-------------------------------------------------------------------
+
+# def FindRotationCenter(tr1, tr2):
+    # A1, B1 = tr1[1:3]
+    # A2, B2 = tr2[1:3]
+
+def FindRotationCenter(pts1, pts2):
+    A1, B1 = pts1
+    A2, B2 = pts2
+
+    Am = [np.average([A1[0], A2[0]]), np.average([A1[1], A2[1]])]
+    Bm = [np.average([B1[0], B2[0]]), np.average([B1[1], B2[1]])]
+
+    aLine = Line(0, 0)
+    bLine = Line(0, 0)
+    aLine.getFromPoints(A1, A2)
+    bLine.getFromPoints(B1, B2)
+
+    aLinePerp = FindPerpendicularLine(aLine, Am)
+    bLinePerp = FindPerpendicularLine(bLine, Bm)
+
+    print('A1 = ({0:.0f}, {1:.0f})'.format(A1[0], A1[1]))
+    print('A2 = ({0:.0f}, {1:.0f})'.format(A2[0], A2[1]))
+    print('B1 = ({0:.0f}, {1:.0f})'.format(B1[0], B1[1]))
+    print('B2 = ({0:.0f}, {1:.0f})'.format(B2[0], B2[1]))
+    # print('Am = ({0:.0f}, {1:.0f})'.format(Am[0], Am[1]))
+    # print('aLine: a = {0:.1f}, b = {1:.1f}'.format(aLine.a, aLine.b))
+    # print('aLinePerp: a = {0:.1f}, b = {1:.1f}'.format(aLinePerp.a, aLinePerp.b))
+
+    rotCenterX = (bLinePerp.b - aLinePerp.b) / (aLinePerp.a - bLinePerp.a)
+    rotCenterY = aLinePerp.a * rotCenterX + aLinePerp.b
+
+    return [rotCenterX, rotCenterY]
+
+#-------------------------------------------------------------------
+
+def RotatePoint(p1, angle):
+    z1 = np.complex(p1[0], p1[1])
+    r = np.abs(z1)
+    phi = np.angle(z1) + imsup.Radians(angle)
+    p2 = [r * np.cos(phi), r * np.sin(phi)]
+    return p2

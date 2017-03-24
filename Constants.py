@@ -1,6 +1,7 @@
 serName = 'd'
 nFiles = 20
 dimSize = 1024
+# dimSize = 2048
 numInFocus = 10
 idxInFocus = numInFocus - 1
 refIdx = 10
@@ -16,7 +17,9 @@ pxWidth = 286.515e-12
 # pxWidth = 52.8781e-12
 ewfLambda = 1.97e-12
 dfStepMin, dfStepMax, dfStepChange = 0.4, 1.2, 0.02
-ccWidgetDim = 512
+ccWidgetDim = 1024
+badPxThreshold = 1.3
+# badPxThreshold = 2.3
 gridDim = 3
 nDivForUnwarp = 8
 
