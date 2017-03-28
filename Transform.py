@@ -163,4 +163,10 @@ def RotatePoint(p1, angle):
     r = np.abs(z1)
     phi = np.angle(z1) + imsup.Radians(angle)
     p2 = [r * np.cos(phi), r * np.sin(phi)]
+    print('######')
+    print(imsup.Degrees(np.angle(z1)))
+    print(angle)
+    print('({0:.0f}, {1:.0f})'.format(p1[0], p1[1]))
+    print('({0:.0f}, {1:.0f})'.format(p2[0], p2[1]))
+    print('######')
     return p2

@@ -34,7 +34,7 @@ class TriangulateWidget(QtGui.QWidget):
         nextButton = QtGui.QPushButton(QtGui.QIcon('gui/next.png'), '', self)
         nextButton.clicked.connect(partial(self.changePixmap, True))
         doneButton = QtGui.QPushButton('Done', self)
-        doneButton.clicked.connect(self.triangulateBasic)
+        doneButton.clicked.connect(self.triangulateAdvanced)
 
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
@@ -125,8 +125,8 @@ class TriangulateWidget(QtGui.QWidget):
         # img2Mag = tr.RescaleImageSki2(img2, magAvg)
 
         # rotation
-        print(rotAngles)
-        print(rotAngleAvg)
+        print('rotAngles = {0}'.format(rotAngles))
+        print('rotAngleAvg = {0}'.format(rotAngleAvg))
         img2Rot = tr.RotateImageSki2(img2, rotAngleAvg, cut=False)
         img2RotCut = tr.RotateImageSki2(img2, rotAngleAvg, cut=True)
         cropCoords = imsup.DetermineCropCoordsForNewWidth(img1.width, img2RotCut.width)
@@ -376,6 +376,7 @@ def CalcRotAngle(p1, p2):
     z2 = np.complex(p2[0], p2[1])
     phi1 = np.angle(z1)
     phi2 = np.angle(z2)
+    # print(imsup.Degrees(phi1), imsup.Degrees(phi2))
     rotAngle = np.abs(imsup.Degrees(phi2 - phi1))
     # if rotAngle < 0:
     #     rotAngle = 360 - np.abs(rotAngle)
