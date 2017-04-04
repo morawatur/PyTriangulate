@@ -19,8 +19,8 @@ pxWidth = 359.122e-12
 ewfLambda = 1.97e-12
 dfStepMin, dfStepMax, dfStepChange = 0.4, 1.2, 0.02
 ccWidgetDim = 1024
-badPxThreshold = 1.1
-# badPxThreshold = 2.3
+badPxThreshold = 1.1  # seria h1
+# badPxThreshold = 2.3    # serie holo+-
 gridDim = 3
 nDivForUnwarp = 8
 
