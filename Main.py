@@ -19,9 +19,6 @@ print('CUDA device in use: ' + dev.name.decode())
 
 gui.RunTriangulationWindow()
 
-# w koncu program wyznacza dobrze srodek obrotu
-# pociagnac to dalej i uzyc do obracania i zsuwania obrazow (na podstawie trzech punktow, a nie MCF)
-
 # img1.MoveToCPU()
 # start = time.clock()
 # for n in range(1000):
