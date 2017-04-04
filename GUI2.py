@@ -29,25 +29,95 @@ class TriangulateWidget(QtGui.QWidget):
         self.initUI()
 
     def initUI(self):
-        prevButton = QtGui.QPushButton(QtGui.QIcon('gui/prev.png'), '', self)
+        prevButton = QtGui.QPushButton('Prev', self)
+        nextButton = QtGui.QPushButton('Next', self)
+        rotLeftButton = QtGui.QPushButton(QtGui.QIcon('gui/rot_left.png'), '', self)
+        rotRightButton = QtGui.QPushButton(QtGui.QIcon('gui/rot_right.png'), '', self)
+        resetButton = QtGui.QPushButton('Reset', self)
+        applyButton = QtGui.QPushButton('Apply', self)
+
+        rotLeftButton.setFixedWidth(self.display.width() // 6)
+        rotRightButton.setFixedWidth(self.display.width() // 6)
+
         prevButton.clicked.connect(partial(self.changePixmap, False))
-        nextButton = QtGui.QPushButton(QtGui.QIcon('gui/next.png'), '', self)
         nextButton.clicked.connect(partial(self.changePixmap, True))
-        doneButton = QtGui.QPushButton('Done', self)
-        doneButton.clicked.connect(self.triangulateAdvanced)
+        rotLeftButton.clicked.connect(self.rotateLeft)
+        rotRightButton.clicked.connect(self.rotateRight)
+        resetButton.clicked.connect(self.resetImage)
+        applyButton.clicked.connect(self.applyChangesToImage)
+
+        self.rotAngleEdit = QtGui.QLineEdit('5', self)
+        self.rotAngleEdit.setFixedWidth(20)
+        self.rotAngleEdit.setMaxLength(3)
+
+        upButton = QtGui.QPushButton(QtGui.QIcon('gui/up.png'), '', self)
+        downButton = QtGui.QPushButton(QtGui.QIcon('gui/down.png'), '', self)
+        leftButton = QtGui.QPushButton(QtGui.QIcon('gui/left.png'), '', self)
+        rightButton = QtGui.QPushButton(QtGui.QIcon('gui/right.png'), '', self)
+        leftButton.setFixedWidth(self.display.width() // 6)
+        rightButton.setFixedWidth(self.display.width() // 6)
+
+        # upButton.clicked.connect(self.movePixmapUp)
+        # downButton.clicked.connect(self.movePixmapDown)
+        # leftButton.clicked.connect(self.movePixmapLeft)
+        # rightButton.clicked.connect(self.movePixmapRight)
+
+        self.shiftStepEdit = QtGui.QLineEdit('5', self)
+        self.shiftStepEdit.setFixedWidth(20)
+        self.shiftStepEdit.setMaxLength(3)
+
+        alignButton = QtGui.QPushButton('Align', self)
+        alignButton.clicked.connect(self.triangulateAdvanced)
+        cropButton = QtGui.QPushButton('Crop', self)
+        cropButton.clicked.connect(self.cropFragment)
+        exportButton = QtGui.QPushButton('Export', self)
+        exportButton.clicked.connect(self.exportImage)
 
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
         hbox_nav.addWidget(nextButton)
-        hbox_nav.addWidget(doneButton)
 
-        vbox = QtGui.QVBoxLayout()
-        vbox.addWidget(self.display)
-        vbox.addLayout(hbox_nav)
-        self.setLayout(vbox)
+        hbox_rot = QtGui.QHBoxLayout()
+        hbox_rot.addWidget(rotLeftButton)
+        hbox_rot.addWidget(self.rotAngleEdit)
+        hbox_rot.addWidget(rotRightButton)
+
+        hbox_dec = QtGui.QHBoxLayout()
+        hbox_dec.addWidget(resetButton)
+        hbox_dec.addWidget(applyButton)
+
+        vbox_nav = QtGui.QVBoxLayout()
+        vbox_nav.addLayout(hbox_nav)
+        vbox_nav.addLayout(hbox_rot)
+        vbox_nav.addLayout(hbox_dec)
+
+        hbox_mv_lr = QtGui.QHBoxLayout()
+        hbox_mv_lr.addWidget(leftButton)
+        hbox_mv_lr.addWidget(self.shiftStepEdit)
+        hbox_mv_lr.addWidget(rightButton)
+
+        vbox_mv = QtGui.QVBoxLayout()
+        vbox_mv.addWidget(upButton)
+        vbox_mv.addLayout(hbox_mv_lr)
+        vbox_mv.addWidget(downButton)
+
+        vbox_opt = QtGui.QVBoxLayout()
+        vbox_opt.addWidget(alignButton)
+        vbox_opt.addWidget(cropButton)
+        vbox_opt.addWidget(exportButton)
+
+        hbox_panel = QtGui.QHBoxLayout()
+        hbox_panel.addLayout(vbox_nav)
+        hbox_panel.addLayout(vbox_mv)
+        hbox_panel.addLayout(vbox_opt)
+
+        vbox_main = QtGui.QVBoxLayout()
+        vbox_main.addWidget(self.display)
+        vbox_main.addLayout(hbox_panel)
+        self.setLayout(vbox_main)
 
         # self.statusBar().showMessage('Ready')
-        self.move(250, 30)
+        self.move(250, 5)
         self.setWindowTitle('Triangulation window')
         self.setWindowIcon(QtGui.QIcon('gui/world.png'))
         self.show()
@@ -75,7 +145,7 @@ class TriangulateWidget(QtGui.QWidget):
             for pt, idx in zip(self.pointSets[self.image.numInSeries-1], range(1, len(self.pointSets[self.image.numInSeries-1])+1)):
                 lab = QtGui.QLabel('{0}'.format(idx), self.display)
                 lab.setStyleSheet('font-size:18pt; background-color:white; border:1px solid rgb(0, 0, 0);')
-                lab.move(pt[0], pt[1] + lab.height() // 2)
+                lab.move(pt[0], pt[1])
                 lab.show()
 
     # def mousePressEvent(self, QMouseEvent):
@@ -84,26 +154,18 @@ class TriangulateWidget(QtGui.QWidget):
     def mouseReleaseEvent(self, QMouseEvent):
         pos = QMouseEvent.pos()
         currPos = [pos.x(), pos.y()]
-        print(currPos)
-        startPos = ((self.width() - const.ccWidgetDim) // 2, (self.height() - const.ccWidgetDim) // 2)
-        endPos = (startPos[0] + const.ccWidgetDim, startPos[1] + const.ccWidgetDim)
-        # startPos = ((self.height() - self.image.height) // 2, (self.width() - self.image.width) // 2)
-        # endPos = (startPos[0] + self.image.height, startPos[1] + self.image.width)
+        startPos = [ self.display.pos().x(), self.display.pos().y() ]
+        endPos = [ startPos[0] + self.display.width(), startPos[1] + self.display.height() ]
 
         if startPos[0] < currPos[0] < endPos[0] and startPos[1] < currPos[1] < endPos[1]:
             currPos = [ a - b for a, b in zip(currPos, startPos) ]
-            # currDispCoords = [ c - const.ccWidgetDim // 2 for c in currPos ]
             if len(self.pointSets) < self.image.numInSeries:
                 self.pointSets.append([])
             self.pointSets[self.image.numInSeries-1].append(currPos)
             lab = QtGui.QLabel('{0}'.format(len(self.pointSets[self.image.numInSeries-1])), self.display)
             lab.setStyleSheet('font-size:18pt; background-color:white; border:1px solid rgb(0, 0, 0);')
-            lab.move(currPos[0], currPos[1] + lab.height() // 2)
+            lab.move(currPos[0], currPos[1])
             lab.show()
-            currRealCoords = CalcRealCoords(const.dimSize, currPos)
-            print(currRealCoords)
-
-        print(self.pointSets)
 
     def triangulateBasic(self):
         triangles = [ [ CalcRealCoords(const.dimSize, self.pointSets[trIdx][pIdx]) for pIdx in range(3) ] for trIdx in range(2) ]
@@ -174,30 +236,21 @@ class TriangulateWidget(QtGui.QWidget):
         rotCenters = []
         for idx1 in range(3):
             for idx2 in range(idx1+1, 3):
-                print(idx1, idx2)
                 rotCenter = tr.FindRotationCenter([triangles[0][idx1], triangles[0][idx2]],
                                                   [triangles[1][idx1], triangles[1][idx2]])
                 rotCenters.append(rotCenter)
-                print('rotCenter = {0}'.format(rotCenter))
                 rcSum = list(np.array(rcSum) + np.array(rotCenter))
 
         rotCenterAvg = list(np.array(rcSum) / 3.0)
-        print('rotCenterAvg = {0}'.format(rotCenterAvg))
 
         rcShift = [ -int(rc) for rc in rotCenterAvg ]
-        # rcShift.reverse()
-        print('rcShift = {0}'.format(rcShift))
+        rcShift.reverse()
         img1 = imsup.CopyImage(self.image.prev)
         img2 = imsup.CopyImage(self.image)
-        imsup.SaveAmpImage(img1, 'img1.png')
-        imsup.SaveAmpImage(img2, 'img2.png')
         img1Rc = cc.ShiftImage(img1, rcShift)
         img2Rc = cc.ShiftImage(img2, rcShift)
-        # cropCoords = imsup.MakeSquareCoords(imsup.DetermineCropCoords(img1Rc.width, img1Rc.height, rcShift))
-        # img1Rc = imsup.CropImageROICoords(img1Rc, cropCoords)
-        # img2Rc = imsup.CropImageROICoords(img2Rc, cropCoords)
-        imsup.SaveAmpImage(img1Rc, 'img1rc.png')
-        imsup.SaveAmpImage(img2Rc, 'img2rc.png')
+        img1Rc = imsup.CreateImageWithBufferFromImage(img1Rc)
+        img2Rc = imsup.CreateImageWithBufferFromImage(img2Rc)
 
         rotAngles = []
         for idx, p1, p2 in zip(range(3), triangles[0], triangles[1]):
@@ -208,47 +261,98 @@ class TriangulateWidget(QtGui.QWidget):
             rotAngles.append(CalcRotAngle(p1New, p2New))
 
         rotAngleAvg = np.average(rotAngles)
-        print(rotAngleAvg)
 
         mags = [ dist1 / dist2 for dist1, dist2 in zip(tr1Dists, tr2Dists) ]
         magAvg = np.average(mags)
 
-        tr1InnerAngles = [ CalcInnerAngle(a, b, c) for a, b, c in zip(tr1Dists, tr1Dists[-1:] + tr1Dists[:-1], tr1Dists[-2:] + tr1Dists[:-2]) ]
-        tr2InnerAngles = [ CalcInnerAngle(a, b, c) for a, b, c in zip(tr2Dists, tr2Dists[-1:] + tr2Dists[:-1], tr2Dists[-2:] + tr2Dists[:-2]) ]
+        # tr1InnerAngles = [ CalcInnerAngle(a, b, c) for a, b, c in zip(tr1Dists, tr1Dists[-1:] + tr1Dists[:-1], tr1Dists[-2:] + tr1Dists[:-2]) ]
+        # tr2InnerAngles = [ CalcInnerAngle(a, b, c) for a, b, c in zip(tr2Dists, tr2Dists[-1:] + tr2Dists[:-1], tr2Dists[-2:] + tr2Dists[:-2]) ]
 
-        triangles[1] = [ tr.RotatePoint(p, rotAngleAvg) for p in triangles[1] ]
-        shifts = [ list(np.array(p1) - np.array(p2)) for p1, p2 in zip(triangles[0], triangles[1]) ]
-        shiftAvg = [ np.average([sh[0] for sh in shifts]), np.average([sh[1] for sh in shifts]) ]
-        shiftAvg = [ int(round(sh)) for sh in shiftAvg ]
-
-        print('---- Triangle 1 ----')
-        print([ 'R{0} = {1:.2f} px\n'.format(idx + 1, dist) for idx, dist in zip(range(3), tr1Dists) ])
-        print([ 'alpha{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), tr1InnerAngles) ])
-        print('---- Triangle 2 ----')
-        print([ 'R{0} = {1:.2f} px\n'.format(idx + 1, dist) for idx, dist in zip(range(3), tr2Dists) ])
-        print([ 'alpha{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), tr2InnerAngles) ])
-        print('---- Magnification ----')
-        print([ 'mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(3), mags) ])
-        print('---- Rotation ----')
-        print([ 'phi{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), rotAngles) ])
-        print('---- Shifts ----')
-        print([ 'dxy{0} = ({1:.1f}, {2:.1f}) px\n'.format(idx + 1, sh[0], sh[1]) for idx, sh in zip(range(3), shifts) ])
-        print('------------------')
-        print('Average magnification = {0:.2f}x'.format(magAvg))
-        print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
-        print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
+        # print('---- Triangle 1 ----')
+        # print([ 'R{0} = {1:.2f} px\n'.format(idx + 1, dist) for idx, dist in zip(range(3), tr1Dists) ])
+        # print([ 'alpha{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), tr1InnerAngles) ])
+        # print('---- Triangle 2 ----')
+        # print([ 'R{0} = {1:.2f} px\n'.format(idx + 1, dist) for idx, dist in zip(range(3), tr2Dists) ])
+        # print([ 'alpha{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), tr2InnerAngles) ])
+        # print('---- Magnification ----')
+        # print([ 'mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(3), mags) ])
+        # print('---- Rotation ----')
+        # print([ 'phi{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), rotAngles) ])
+        # print('---- Shifts ----')
+        # print([ 'dxy{0} = ({1:.1f}, {2:.1f}) px\n'.format(idx + 1, sh[0], sh[1]) for idx, sh in zip(range(3), shifts) ])
+        # print('------------------')
+        # print('Average magnification = {0:.2f}x'.format(magAvg))
+        # print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
+        # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
 
         # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
-        # imsup.SaveAmpImage(img2Mag, 'img2_mag.png')
         img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
-        imsup.SaveAmpImage(img2Rot, 'holo2.png')
 
-        self.pointSets[0][:] = [ CalcNewCoords(SwitchXY(rotCenters[idx]), [-512, -512]) for idx in range(3) ]
-        self.pointSets[1][:] = [ CalcNewCoords(SwitchXY(rotCenters[idx]), [-512, -512]) for idx in range(3) ]
-        print(self.pointSets[0])
-        print(self.pointSets[1])
+        # imsup.SaveAmpImage(img1Rc, 'holo1.png')
+        # imsup.SaveAmpImage(img2Rot, 'holo2.png')
 
-        return
+        img1Rc.MoveToCPU()
+        img2Rot.MoveToCPU()
+        img1Rc.UpdateBuffer()
+        img2Rot.UpdateBuffer()
+        self.image.next = img1Rc
+        img1Rc.prev = self.image
+        img1Rc.next = img2Rot
+        img2Rot.prev = img1Rc
+        img1Rc.numInSeries = self.image.numInSeries + 1
+        img2Rot.numInSeries = img1Rc.numInSeries + 1
+        self.pointSets.append([])
+        self.changePixmap(True)
+
+        # dodac mozliwosc zaznaczenia wiekszej niz 3 liczby punktow w celu dokladniejszego okreslenia srodka obrotu
+        # dodac opcje do unwarpingu
+        print('Triangulation complete!')
+
+    def rotateManual(self):
+        img2Rot = tr.RotateImageSki2(self.image, self.image.rot, cut=False)
+        self.image.buffer = np.copy(img2Rot.amPh.am)
+        self.createPixmap()
+
+    def rotateRight(self):
+        self.rotAngleEdit.text()
+        self.image.rot -= int(self.rotAngleEdit.text())
+        self.rotateManual()
+
+    def rotateLeft(self):
+        self.image.rot += int(self.rotAngleEdit.text())
+        self.rotateManual()
+
+    def resetImage(self):
+        self.image.UpdateBuffer()
+        self.image.shift = [0, 0]
+        self.image.rot = 0
+        self.image.defocus = 0.0
+        self.createPixmap()
+
+    def applyChangesToImage(self):
+        self.image.UpdateImageFromBuffer()
+
+    def cropFragment(self):
+        [ pt1, pt2 ] = self.pointSets[self.image.numInSeries-1][:2]
+        dispCropCoords = pt1 + pt2
+        midCropCoords = CalcRealCoords(self.image.width, dispCropCoords)
+        tlCropCoords = imsup.MakeSquareCoords(CalcTopLeftCoords(self.image.width, midCropCoords))
+        img1 = self.image
+        img1Crop = imsup.CropImageROICoords(img1, tlCropCoords)
+        imsup.SaveAmpImage(img1Crop, 'crop1.png')
+
+        if self.image.prev is not None:
+            img2 = self.image.prev
+            img2Crop = imsup.CropImageROICoords(img1, tlCropCoords)
+            imsup.SaveAmpImage(img2Crop, 'crop2.png')
+
+    def unWarpImage(self):
+        pass
+
+    def exportImage(self):
+        fName = 'img{0}.png'.format(self.image.numInSeries)
+        imsup.SaveAmpImage(self.image, fName)
+        print('Saved image as "{0}"'.format(fName))
 
 # --------------------------------------------------------
 
@@ -280,6 +384,12 @@ def LoadImageSeriesFromFirstFile(imgPath):
 
     imgList.UpdateLinks()
     return imgList[0]
+
+# --------------------------------------------------------
+
+def CalcTopLeftCoords(imgWidth, midCoords):
+    topLeftCoords = [ mc + imgWidth // 2 for mc in midCoords ]
+    return topLeftCoords
 
 # --------------------------------------------------------
 
@@ -324,6 +434,7 @@ def CalcNewCoords(p1, newCenter):
 
 # --------------------------------------------------------
 
+# tu jeszcze cos nie tak (03-04-2017)
 def CalcRotAngle(p1, p2):
     z1 = np.complex(p1[0], p1[1])
     z2 = np.complex(p2[0], p2[1])
