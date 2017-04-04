@@ -58,6 +58,7 @@ def RotateAndMagnifyWrapper(img, todo='mr', factor=1.0, angle=0.0):
 
     limits = [np.min(img.amPh.am), np.max(img.amPh.am)]
     ampMod = np.copy(imsup.ScaleImage(img.amPh.am, -1.0, 1.0))
+    ampMod[ampMod == -1] = 0.0
 
     if 'r' in todo:
         ampMod = tr.rotate(ampMod, angle=angle).astype(np.float32)
@@ -78,19 +79,13 @@ def RotateAndMagnifyWrapper(img, todo='mr', factor=1.0, angle=0.0):
 #-------------------------------------------------------------------
 
 def DetermineCropCoordsAfterSkiRotation(oldDim, angle):
-    radAngle = imsup.Radians(np.abs(angle) % 45)
-    newDim = oldDim / (np.cos(radAngle) + np.sin(radAngle))
-    start = (oldDim - newDim) / 2.0
-    end = oldDim - start
-    cropCoords = [int(np.ceil(start))] * 2 + [int(np.floor(end))] * 2
-    return cropCoords
+    return imsup.DetermineCropCoordsAfterRotation(oldDim, oldDim, angle)
 
 #-------------------------------------------------------------------
 
 def RotateImageSki2(img, angle, cut=False):
     imgRot = RotateAndMagnifyWrapper(img, 'r', angle=angle)
-    imsup.SaveAmpImage(imgRot, 'img2_rot.png')
-    if cut:     # wycinanie zle dziala
+    if cut:
         cropCoords = DetermineCropCoordsAfterSkiRotation(img.width, angle)
         imgRot = imsup.CropImageROICoords(imgRot, cropCoords)
     return imgRot
@@ -143,14 +138,6 @@ def FindRotationCenter(pts1, pts2):
     aLinePerp = FindPerpendicularLine(aLine, Am)
     bLinePerp = FindPerpendicularLine(bLine, Bm)
 
-    print('A1 = ({0:.0f}, {1:.0f})'.format(A1[0], A1[1]))
-    print('A2 = ({0:.0f}, {1:.0f})'.format(A2[0], A2[1]))
-    print('B1 = ({0:.0f}, {1:.0f})'.format(B1[0], B1[1]))
-    print('B2 = ({0:.0f}, {1:.0f})'.format(B2[0], B2[1]))
-    # print('Am = ({0:.0f}, {1:.0f})'.format(Am[0], Am[1]))
-    # print('aLine: a = {0:.1f}, b = {1:.1f}'.format(aLine.a, aLine.b))
-    # print('aLinePerp: a = {0:.1f}, b = {1:.1f}'.format(aLinePerp.a, aLinePerp.b))
-
     rotCenterX = (bLinePerp.b - aLinePerp.b) / (aLinePerp.a - bLinePerp.a)
     rotCenterY = aLinePerp.a * rotCenterX + aLinePerp.b
 
@@ -163,10 +150,4 @@ def RotatePoint(p1, angle):
     r = np.abs(z1)
     phi = np.angle(z1) + imsup.Radians(angle)
     p2 = [r * np.cos(phi), r * np.sin(phi)]
-    print('######')
-    print(imsup.Degrees(np.angle(z1)))
-    print(angle)
-    print('({0:.0f}, {1:.0f})'.format(p1[0], p1[1]))
-    print('({0:.0f}, {1:.0f})'.format(p2[0], p2[1]))
-    print('######')
     return p2
