@@ -156,6 +156,7 @@ class ImageWithBuffer(Image):
         super(ImageWithBuffer, self).__init__(height, width, cmpRepr, memType, defocus, num)
         self.parent = super(ImageWithBuffer, self)
         self.shift = [0, 0]
+        self.rot = 0
         if self.memType == self.mem['CPU']:
             self.buffer = np.zeros(self.amPh.am.shape, dtype=np.float32)
         else:
