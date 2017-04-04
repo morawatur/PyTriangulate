@@ -67,11 +67,15 @@ class TriangulateWidget(QtGui.QWidget):
         self.shiftStepEdit.setMaxLength(3)
 
         alignButton = QtGui.QPushButton('Align', self)
-        alignButton.clicked.connect(self.triangulateAdvanced)
+        alignButton.clicked.connect(self.triangulate)
         cropButton = QtGui.QPushButton('Crop', self)
         cropButton.clicked.connect(self.cropFragment)
         exportButton = QtGui.QPushButton('Export', self)
         exportButton.clicked.connect(self.exportImage)
+
+        self.basicRadioButton = QtGui.QRadioButton('Basic', self)
+        self.basicRadioButton.setChecked(True)
+        self.advancedRadioButton = QtGui.QRadioButton('Advanced', self)
 
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
@@ -106,10 +110,15 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_opt.addWidget(cropButton)
         vbox_opt.addWidget(exportButton)
 
+        vbox_tr = QtGui.QVBoxLayout()
+        vbox_tr.addWidget(self.basicRadioButton)
+        vbox_tr.addWidget(self.advancedRadioButton)
+
         hbox_panel = QtGui.QHBoxLayout()
         hbox_panel.addLayout(vbox_nav)
         hbox_panel.addLayout(vbox_mv)
         hbox_panel.addLayout(vbox_opt)
+        hbox_panel.addLayout(vbox_tr)
 
         vbox_main = QtGui.QVBoxLayout()
         vbox_main.addWidget(self.display)
@@ -166,6 +175,12 @@ class TriangulateWidget(QtGui.QWidget):
             lab.setStyleSheet('font-size:18pt; background-color:white; border:1px solid rgb(0, 0, 0);')
             lab.move(currPos[0], currPos[1])
             lab.show()
+
+    def triangulate(self):
+        if self.basicRadioButton.isChecked():
+            self.triangulateBasic()
+        elif self.advancedRadioButton.isChecked():
+            self.triangulateAdvanced()
 
     def triangulateBasic(self):
         triangles = [ [ CalcRealCoords(const.dimSize, self.pointSets[trIdx][pIdx]) for pIdx in range(3) ] for trIdx in range(2) ]
@@ -343,7 +358,7 @@ class TriangulateWidget(QtGui.QWidget):
 
         if self.image.prev is not None:
             img2 = self.image.prev
-            img2Crop = imsup.CropImageROICoords(img1, tlCropCoords)
+            img2Crop = imsup.CropImageROICoords(img2, tlCropCoords)
             imsup.SaveAmpImage(img2Crop, 'crop2.png')
 
     def unWarpImage(self):
