@@ -133,8 +133,11 @@ class TriangulateWidget(QtGui.QWidget):
         self.setFixedSize(self.width(), self.height())  # disable window resizing
 
     def createPixmap(self):
-        qImg = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
-                            self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
+        paddedExitWave = imsup.PadImageBufferToNx512(self.image, np.max(self.image.buffer))
+        qImg = QtGui.QImage(imsup.ScaleImage(paddedExitWave.buffer, 0.0, 255.0).astype(np.uint8),
+                            paddedExitWave.width, paddedExitWave.height, QtGui.QImage.Format_Indexed8)
+        # qImg = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
+        #                     self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
         pixmap = QtGui.QPixmap(qImg)
         pixmap = pixmap.scaledToWidth(const.ccWidgetDim)    # !!!
         self.display.setPixmap(pixmap)
@@ -251,12 +254,16 @@ class TriangulateWidget(QtGui.QWidget):
         rotCenters = []
         for idx1 in range(3):
             for idx2 in range(idx1+1, 3):
+                print(triangles[0][idx1], triangles[0][idx2])
+                print(triangles[1][idx1], triangles[1][idx2])
                 rotCenter = tr.FindRotationCenter([triangles[0][idx1], triangles[0][idx2]],
                                                   [triangles[1][idx1], triangles[1][idx2]])
                 rotCenters.append(rotCenter)
+                print(rotCenter)
                 rcSum = list(np.array(rcSum) + np.array(rotCenter))
 
         rotCenterAvg = list(np.array(rcSum) / 3.0)
+        print(rotCenterAvg)
 
         rcShift = [ -int(rc) for rc in rotCenterAvg ]
         rcShift.reverse()
@@ -291,13 +298,13 @@ class TriangulateWidget(QtGui.QWidget):
         # print([ 'alpha{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), tr2InnerAngles) ])
         # print('---- Magnification ----')
         # print([ 'mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(3), mags) ])
-        # print('---- Rotation ----')
-        # print([ 'phi{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), rotAngles) ])
+        print('---- Rotation ----')
+        print([ 'phi{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), rotAngles) ])
         # print('---- Shifts ----')
         # print([ 'dxy{0} = ({1:.1f}, {2:.1f}) px\n'.format(idx + 1, sh[0], sh[1]) for idx, sh in zip(range(3), shifts) ])
         # print('------------------')
         # print('Average magnification = {0:.2f}x'.format(magAvg))
-        # print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
+        print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
         # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
 
         # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
@@ -324,7 +331,9 @@ class TriangulateWidget(QtGui.QWidget):
         print('Triangulation complete!')
 
     def rotateManual(self):
-        img2Rot = tr.RotateImageSki2(self.image, self.image.rot, cut=False)
+        # img2Rot = tr.RotateImageSki2(self.image, self.image.rot, cut=False)
+        img2Rot = imsup.RotateImage(self.image, self.image.rot)
+        img2Rot.MoveToCPU()
         self.image.buffer = np.copy(img2Rot.amPh.am)
         self.createPixmap()
 
