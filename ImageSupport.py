@@ -676,7 +676,6 @@ def PadImageBufferToNx512(img, padValue):
     imgBufWidth = img.buffer.shape[1]
     pHeight = np.ceil(imgBufHeight / dimFactor) * dimFactor
     pWidth = np.ceil(imgBufWidth / dimFactor) * dimFactor
-    print(pHeight, pWidth)
     ltPadding = (pHeight - imgBufHeight) // 2
     rbPadding = ltPadding if not imgBufHeight % 2 else ltPadding + 1
     mt = img.memType
