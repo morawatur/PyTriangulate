@@ -191,6 +191,12 @@ class ImageWithBuffer(Image):
         super(ImageWithBuffer, self).MoveToCPU()
         self.buffer = self.buffer.copy_to_host()
 
+    def ReIm2AmPh(self):
+        if self.cmpRepr == self.cmp['CAP']:
+            return
+        super(ImageWithBuffer, self).ReIm2AmPh()
+        self.UpdateBuffer()
+
 #-------------------------------------------------------------------
 
 class ImageList(list):
@@ -666,10 +672,13 @@ def PadImage(img, bufSz, padValue, dirs):
 
 def PadImageBufferToNx512(img, padValue):
     dimFactor = 512
-    pHeight = np.ceil(img.height / dimFactor) * dimFactor
-    pWidth = np.ceil(img.width / dimFactor) * dimFactor
-    ltPadding = (pHeight - img.height) // 2
-    rbPadding = ltPadding if not img.height % 2 else ltPadding + 1
+    imgBufHeight = img.buffer.shape[0]
+    imgBufWidth = img.buffer.shape[1]
+    pHeight = np.ceil(imgBufHeight / dimFactor) * dimFactor
+    pWidth = np.ceil(imgBufWidth / dimFactor) * dimFactor
+    print(pHeight, pWidth)
+    ltPadding = (pHeight - imgBufHeight) // 2
+    rbPadding = ltPadding if not imgBufHeight % 2 else ltPadding + 1
     mt = img.memType
     img.ReIm2AmPh()
     img.MoveToCPU()
@@ -687,8 +696,10 @@ def PadImageBufferToNx512(img, padValue):
 #-------------------------------------------------------------------
 
 def RotateImage(img, deltaPhi):
+    mt = img.memType
     img.MoveToGPU()
-    # img.ReIm2AmPh()
+    img.ReIm2AmPh()
+
     piBy4 = np.pi / 4
     deltaPhiRad = deltaPhi * np.pi / 180.0
     rMax = np.sqrt((img.width / 2.0) ** 2 + (img.height / 2.0) ** 2)
@@ -709,6 +720,8 @@ def RotateImage(img, deltaPhi):
     blockDim, gridDim = ccfg.DetermineCudaConfigNew(imgRotated.amPh.am.shape)
     InterpolateMissingPixels_dev[gridDim, blockDim](imgRotated.amPh.am, filled)
 
+    imgRotated = CreateImageWithBufferFromImage(imgRotated)
+    img.ChangeMemoryType(mt)
     return imgRotated
 
 #-------------------------------------------------------------------
