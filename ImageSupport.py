@@ -208,6 +208,7 @@ class ImageList(list):
         for imgPrev, imgNext in zip(self[:-1], self[1:]):
             imgPrev.next = imgNext
             imgNext.prev = imgPrev
+            imgNext.numInSeries = imgPrev.numInSeries + 1
 
 #-------------------------------------------------------------------
 
@@ -651,6 +652,7 @@ def CreateImageListFromImage(img, howMany):
 
 def PadImage(img, bufSz, padValue, dirs):
     pads = [ bufSz if d in 'tblr' else 0 for d in dirs ]
+    print(pads)
     pHeight = img.height + pads[0] + pads[1]
     pWidth = img.width + pads[2] + pads[3]
     # rbPadding = ltPadding if not img.height % 2 else ltPadding + 1

@@ -247,6 +247,8 @@ class TriangulateWidget(QtGui.QWidget):
         imsup.SaveAmpImage(img1Res, 'holo1_cut.png')
         imsup.SaveAmpImage(img2Res, 'holo2_cut.png')
 
+    # dodac mozliwosc zaznaczenia wiekszej niz 3 liczby punktow w celu dokladniejszego okreslenia srodka obrotu
+    # dodac opcje do unwarpingu
     def triangulateAdvanced(self):
         triangles = [ [ CalcRealCoords(const.dimSize, self.pointSets[trIdx][pIdx]) for pIdx in range(3) ] for trIdx in range(2) ]
 
@@ -262,7 +264,7 @@ class TriangulateWidget(QtGui.QWidget):
                 rotCenter = tr.FindRotationCenter([triangles[0][idx1], triangles[0][idx2]],
                                                   [triangles[1][idx1], triangles[1][idx2]])
                 rotCenters.append(rotCenter)
-                # print(rotCenter)
+                print(rotCenter)
                 rcSum = list(np.array(rcSum) + np.array(rotCenter))
 
         rotCenterAvg = list(np.array(rcSum) / 3.0)
@@ -272,8 +274,18 @@ class TriangulateWidget(QtGui.QWidget):
         rcShift.reverse()
         img1 = imsup.CopyImage(self.image.prev)
         img2 = imsup.CopyImage(self.image)
-        img1Rc = cc.ShiftImage(img1, rcShift)
-        img2Rc = cc.ShiftImage(img2, rcShift)
+
+        bufSz = max([abs(x) for x in rcShift])
+        dirV = 't-' if rcShift[1] > 0 else '-b'
+        dirH = 'l-' if rcShift[0] > 0 else '-r'
+        img1Pad = imsup.PadImage(img1, bufSz, 0.0, dirV+dirH)
+        img2Pad = imsup.PadImage(img2, bufSz, 0.0, dirV+dirH)
+
+        img1Rc = cc.ShiftImage(img1Pad, rcShift)
+        img2Rc = cc.ShiftImage(img2Pad, rcShift)
+        cropCoords = imsup.MakeSquareCoords(imsup.DetermineCropCoords(img1Rc.width, img1Rc.height, rcShift))
+        img1Rc = imsup.CropImageROICoords(img1Rc, cropCoords)
+        img2Rc = imsup.CropImageROICoords(img2Rc, cropCoords)
         img1Rc = imsup.CreateImageWithBufferFromImage(img1Rc)
         img2Rc = imsup.CreateImageWithBufferFromImage(img2Rc)
 
@@ -312,28 +324,21 @@ class TriangulateWidget(QtGui.QWidget):
 
         # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
         # img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
+
+        # TUTAJ COS NIE TAK
         img2Rot = imsup.RotateImage(img2Rc, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
-
-        # imsup.SaveAmpImage(img1Rc, 'holo1.png')
-        # imsup.SaveAmpImage(img2Rot, 'holo2.png')
 
         img1RcPad.MoveToCPU()
         img2Rot.MoveToCPU()
         img1RcPad.UpdateBuffer()
         img2Rot.UpdateBuffer()
-        self.image.next = img1RcPad
-        img1RcPad.prev = self.image
-        img1RcPad.next = img2Rot
-        img2Rot.prev = img1RcPad
-        img1RcPad.numInSeries = self.image.numInSeries + 1
-        img2Rot.numInSeries = img1RcPad.numInSeries + 1
+        tmpImgList = imsup.ImageList([ self.image, img1RcPad, img2Rot ])
+        tmpImgList.UpdateLinks()
         self.pointSets.append([])
         self.changePixmap(True)
 
-        # dodac mozliwosc zaznaczenia wiekszej niz 3 liczby punktow w celu dokladniejszego okreslenia srodka obrotu
-        # dodac opcje do unwarpingu
         print('Triangulation complete!')
 
     def rotateManual(self):
