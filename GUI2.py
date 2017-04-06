@@ -275,19 +275,25 @@ class TriangulateWidget(QtGui.QWidget):
         img1 = imsup.CopyImage(self.image.prev)
         img2 = imsup.CopyImage(self.image)
 
+        # ten padding trzeba jednak dodac ze wszystkich stron
         bufSz = max([abs(x) for x in rcShift])
-        dirV = 't-' if rcShift[1] > 0 else '-b'
-        dirH = 'l-' if rcShift[0] > 0 else '-r'
-        img1Pad = imsup.PadImage(img1, bufSz, 0.0, dirV+dirH)
-        img2Pad = imsup.PadImage(img2, bufSz, 0.0, dirV+dirH)
+        # dirV = 't-' if rcShift[1] > 0 else '-b'
+        # dirH = 'l-' if rcShift[0] > 0 else '-r'
+        dirs = 'tblr'
+        # img1Pad = imsup.PadImage(img1, bufSz, 0.0, dirV+dirH)
+        # img2Pad = imsup.PadImage(img2, bufSz, 0.0, dirV+dirH)
+        img1Pad = imsup.PadImage(img1, bufSz, 0.0, dirs)
+        img2Pad = imsup.PadImage(img2, bufSz, 0.0, dirs)
 
         img1Rc = cc.ShiftImage(img1Pad, rcShift)
         img2Rc = cc.ShiftImage(img2Pad, rcShift)
-        cropCoords = imsup.MakeSquareCoords(imsup.DetermineCropCoords(img1Rc.width, img1Rc.height, rcShift))
-        img1Rc = imsup.CropImageROICoords(img1Rc, cropCoords)
-        img2Rc = imsup.CropImageROICoords(img2Rc, cropCoords)
+        # cropCoords = imsup.MakeSquareCoords(imsup.DetermineCropCoords(img1Rc.width, img1Rc.height, rcShift))
+        # img1Rc = imsup.CropImageROICoords(img1Rc, cropCoords)
+        # img2Rc = imsup.CropImageROICoords(img2Rc, cropCoords)
         img1Rc = imsup.CreateImageWithBufferFromImage(img1Rc)
         img2Rc = imsup.CreateImageWithBufferFromImage(img2Rc)
+        imsup.SaveAmpImage(img1Rc, 'a.png')
+        imsup.SaveAmpImage(img2Rc, 'b.png')
 
         rotAngles = []
         for idx, p1, p2 in zip(range(3), triangles[0], triangles[1]):
@@ -323,10 +329,10 @@ class TriangulateWidget(QtGui.QWidget):
         # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
 
         # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
-        # img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
+        img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
 
         # TUTAJ COS NIE TAK
-        img2Rot = imsup.RotateImage(img2Rc, rotAngleAvg)
+        # img2Rot = imsup.RotateImage(img2Rc, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
 
