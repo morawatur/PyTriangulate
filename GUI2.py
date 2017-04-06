@@ -66,8 +66,8 @@ class TriangulateWidget(QtGui.QWidget):
         self.shiftStepEdit.setFixedWidth(20)
         self.shiftStepEdit.setMaxLength(3)
 
-        alignButton = QtGui.QPushButton('Align', self)
-        alignButton.clicked.connect(self.triangulate)
+        clearButton = QtGui.QPushButton('Clear', self)
+        clearButton.clicked.connect(self.clearImage)
         cropButton = QtGui.QPushButton('Crop', self)
         cropButton.clicked.connect(self.cropFragment)
         exportButton = QtGui.QPushButton('Export', self)
@@ -76,6 +76,8 @@ class TriangulateWidget(QtGui.QWidget):
         self.basicRadioButton = QtGui.QRadioButton('Basic', self)
         self.basicRadioButton.setChecked(True)
         self.advancedRadioButton = QtGui.QRadioButton('Advanced', self)
+        alignButton = QtGui.QPushButton('Align', self)
+        alignButton.clicked.connect(self.triangulate)
 
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
@@ -106,13 +108,14 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_mv.addWidget(downButton)
 
         vbox_opt = QtGui.QVBoxLayout()
-        vbox_opt.addWidget(alignButton)
+        vbox_opt.addWidget(clearButton)
         vbox_opt.addWidget(cropButton)
         vbox_opt.addWidget(exportButton)
 
         vbox_tr = QtGui.QVBoxLayout()
         vbox_tr.addWidget(self.basicRadioButton)
         vbox_tr.addWidget(self.advancedRadioButton)
+        vbox_tr.addWidget(alignButton)
 
         hbox_panel = QtGui.QHBoxLayout()
         hbox_panel.addLayout(vbox_nav)
@@ -254,16 +257,16 @@ class TriangulateWidget(QtGui.QWidget):
         rotCenters = []
         for idx1 in range(3):
             for idx2 in range(idx1+1, 3):
-                print(triangles[0][idx1], triangles[0][idx2])
-                print(triangles[1][idx1], triangles[1][idx2])
+                # print(triangles[0][idx1], triangles[0][idx2])
+                # print(triangles[1][idx1], triangles[1][idx2])
                 rotCenter = tr.FindRotationCenter([triangles[0][idx1], triangles[0][idx2]],
                                                   [triangles[1][idx1], triangles[1][idx2]])
                 rotCenters.append(rotCenter)
-                print(rotCenter)
+                # print(rotCenter)
                 rcSum = list(np.array(rcSum) + np.array(rotCenter))
 
         rotCenterAvg = list(np.array(rcSum) / 3.0)
-        print(rotCenterAvg)
+        # print(rotCenterAvg)
 
         rcShift = [ -int(rc) for rc in rotCenterAvg ]
         rcShift.reverse()
@@ -308,21 +311,24 @@ class TriangulateWidget(QtGui.QWidget):
         # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
 
         # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
-        img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
+        # img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
+        img2Rot = imsup.RotateImage(img2Rc, rotAngleAvg)
+        padSz = (img2Rot.width - img1Rc.width) // 2
+        img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
 
         # imsup.SaveAmpImage(img1Rc, 'holo1.png')
         # imsup.SaveAmpImage(img2Rot, 'holo2.png')
 
-        img1Rc.MoveToCPU()
+        img1RcPad.MoveToCPU()
         img2Rot.MoveToCPU()
-        img1Rc.UpdateBuffer()
+        img1RcPad.UpdateBuffer()
         img2Rot.UpdateBuffer()
-        self.image.next = img1Rc
-        img1Rc.prev = self.image
-        img1Rc.next = img2Rot
-        img2Rot.prev = img1Rc
-        img1Rc.numInSeries = self.image.numInSeries + 1
-        img2Rot.numInSeries = img1Rc.numInSeries + 1
+        self.image.next = img1RcPad
+        img1RcPad.prev = self.image
+        img1RcPad.next = img2Rot
+        img2Rot.prev = img1RcPad
+        img1RcPad.numInSeries = self.image.numInSeries + 1
+        img2Rot.numInSeries = img1RcPad.numInSeries + 1
         self.pointSets.append([])
         self.changePixmap(True)
 
@@ -346,6 +352,12 @@ class TriangulateWidget(QtGui.QWidget):
         self.image.rot += int(self.rotAngleEdit.text())
         self.rotateManual()
 
+    def clearImage(self):
+        labToDel = self.display.children()
+        for child in labToDel:
+            child.deleteLater()
+        self.pointSets[self.image.numInSeries - 1][:] = []
+
     def resetImage(self):
         self.image.UpdateBuffer()
         self.image.shift = [0, 0]
@@ -359,15 +371,14 @@ class TriangulateWidget(QtGui.QWidget):
     def cropFragment(self):
         [ pt1, pt2 ] = self.pointSets[self.image.numInSeries-1][:2]
         dispCropCoords = pt1 + pt2
-        midCropCoords = CalcRealCoords(self.image.width, dispCropCoords)
-        tlCropCoords = imsup.MakeSquareCoords(CalcTopLeftCoords(self.image.width, midCropCoords))
+        realCropCoords = imsup.MakeSquareCoords(CalcRealTLCoordsForPaddedImage(self.image.width, dispCropCoords))
         img1 = self.image
-        img1Crop = imsup.CropImageROICoords(img1, tlCropCoords)
+        img1Crop = imsup.CropImageROICoords(img1, realCropCoords)
         imsup.SaveAmpImage(img1Crop, 'crop1.png')
 
         if self.image.prev is not None:
             img2 = self.image.prev
-            img2Crop = imsup.CropImageROICoords(img2, tlCropCoords)
+            img2Crop = imsup.CropImageROICoords(img2, realCropCoords)
             imsup.SaveAmpImage(img2Crop, 'crop2.png')
 
     def unWarpImage(self):
@@ -420,7 +431,19 @@ def CalcTopLeftCoords(imgWidth, midCoords):
 def CalcRealCoords(imgWidth, dispCoords):
     dispWidth = const.ccWidgetDim
     factor = imgWidth / dispWidth
-    realCoords = [ (dc - const.ccWidgetDim // 2) * factor for dc in dispCoords ]
+    realCoords = [ (dc - dispWidth // 2) * factor for dc in dispCoords ]
+    return realCoords
+
+# --------------------------------------------------------
+
+def CalcRealTLCoordsForPaddedImage(imgWidth, dispCoords):
+    dispWidth = const.ccWidgetDim
+    padImgWidthReal = np.ceil(imgWidth / 512.0) * 512.0
+    pad = (padImgWidthReal - imgWidth) / 2.0
+    factor = padImgWidthReal / dispWidth
+    # dispPad = pad / factor
+    # realCoords = [ (dc - dispPad) * factor for dc in dispCoords ]
+    realCoords = [ dc * factor - pad  for dc in dispCoords ]
     return realCoords
 
 # --------------------------------------------------------
@@ -464,7 +487,6 @@ def CalcRotAngle(p1, p2):
     z2 = np.complex(p2[0], p2[1])
     phi1 = np.angle(z1)
     phi2 = np.angle(z2)
-    # print(imsup.Degrees(phi1), imsup.Degrees(phi2))
     rotAngle = np.abs(imsup.Degrees(phi2 - phi1))
     # if rotAngle < 0:
     #     rotAngle = 360 - np.abs(rotAngle)
