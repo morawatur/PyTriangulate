@@ -15,10 +15,10 @@ def UnwarpImage(imgRef, img, nDiv, fragCoords):
 
     dfChange = -abs(abs(imgRef.defocus) - abs(img.defocus))
     print('df_uw({0}, {1}) = {2:.2f} um'.format(imgRef.numInSeries, img.numInSeries, dfChange * 1e6))
-    imgRefProp = prop.PropagateBackToDefocus(imgRef, dfChange)
+    # imgRefProp = prop.PropagateBackToDefocus(imgRef, dfChange)
 
     # fragCoords = [(b, a) for a in range(nDiv) for b in range(nDiv)]
-    shifts = cc.CalcPartialCrossCorrFunUW(imgRef, img, 8, fragCoords)
+    shifts = cc.CalcPartialCrossCorrFunUW(imgRef, img, nDiv, fragCoords)
 
     # interpolacja
 
@@ -74,6 +74,7 @@ def UnwarpImage(imgRef, img, nDiv, fragCoords):
     # allFragCoords = [(b, a) for a in range(nDiv) for b in range(nDiv)]
     fragDimSize = img.width // nDiv
     src = np.array(allFragCoords)
+    print(src, type(src))
     src *= fragDimSize
     dst = src - newShifts
 
@@ -89,17 +90,17 @@ def UnwarpImage(imgRef, img, nDiv, fragCoords):
 
     warpedImage = imsup.Image(warped.shape[0], warped.shape[1])
     warpedImage.amPh.am = np.copy(warpedScaledBack)
-    img.amPh.am = np.copy(warpedImage.amPh.am)
+    # img.amPh.am = np.copy(warpedImage.amPh.am)
 
     img.ChangeMemoryType(mt)
     img.ChangeComplexRepr(dt)
     imgRef.ChangeMemoryType(mt)
     imgRef.ChangeComplexRepr(dt)
 
-    imsup.SaveAmpImage(imgRef, 'ref.png')
-    imsup.SaveAmpImage(img, 'uwImg.png')
+    # imsup.SaveAmpImage(imgRef, 'ref.png')
+    # imsup.SaveAmpImage(img, 'uwImg.png')
 
-    return img
+    return warpedImage
 
 # -------------------------------------------------------------------
 
