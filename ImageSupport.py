@@ -946,7 +946,7 @@ def LinkTwoImagesSmoothlyV(img1, img2):
 #-------------------------------------------------------------------
 
 # Funkcja zmiany limitow kontrastu polega wlasciwie na tym samym (trzeba tylko dac dwa warunki: gorny i dolny)
-def RemovePixelArtifacts(img, threshold=1.3):
+def RemovePixelArtifacts(img, minThreshold=0.7, maxThreshold=1.3):
     mt = img.memType
     dt = img.cmpRepr
     img.ReIm2AmPh()
@@ -954,8 +954,8 @@ def RemovePixelArtifacts(img, threshold=1.3):
 
     arr = np.copy(img.amPh.am)
     arrAvg = np.average(arr)
-    badPixelIndices = np.where(arr >= (threshold * arrAvg)) # and np.where(arr <= (0.7 * arrAvg))
-    arrCorr = arr * (arr < (threshold * arrAvg)) # + arr * (arr > (0.7 * arrAvg))
+    badPixelIndices = np.where(arr >= (maxThreshold * arrAvg)) and np.where(arr <= (minThreshold * arrAvg))
+    arrCorr = arr * (arr < (maxThreshold * arrAvg)) + arr * (arr > (minThreshold * arrAvg))
     print('Registered {0} bad pixels'.format(len(badPixelIndices[0])))
 
     for y, x in zip(badPixelIndices[0], badPixelIndices[1]):
