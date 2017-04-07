@@ -1,15 +1,18 @@
-import math
 import re
 import sys
 from os import path
 from functools import partial
 import numpy as np
+from scipy import interpolate
+from scipy import ndimage
+from skimage import transform as tf
 from PyQt4 import QtGui, QtCore
 import Dm3Reader3 as dm3
 import Constants as const
 import ImageSupport as imsup
 import CrossCorr as cc
 import Transform as tr
+import Unwarp as uw
 
 # --------------------------------------------------------
 
@@ -78,6 +81,8 @@ class TriangulateWidget(QtGui.QWidget):
         self.advancedRadioButton = QtGui.QRadioButton('Advanced', self)
         alignButton = QtGui.QPushButton('Align', self)
         alignButton.clicked.connect(self.triangulate)
+        warpButton = QtGui.QPushButton('Warp', self)
+        warpButton.clicked.connect(partial(self.warpImageManual, False))
 
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
@@ -112,10 +117,14 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_opt.addWidget(cropButton)
         vbox_opt.addWidget(exportButton)
 
+        hbox_alg = QtGui.QHBoxLayout()
+        hbox_alg.addWidget(alignButton)
+        hbox_alg.addWidget(warpButton)
+
         vbox_tr = QtGui.QVBoxLayout()
         vbox_tr.addWidget(self.basicRadioButton)
         vbox_tr.addWidget(self.advancedRadioButton)
-        vbox_tr.addWidget(alignButton)
+        vbox_tr.addLayout(hbox_alg)
 
         hbox_panel = QtGui.QHBoxLayout()
         hbox_panel.addLayout(vbox_nav)
@@ -136,9 +145,9 @@ class TriangulateWidget(QtGui.QWidget):
         self.setFixedSize(self.width(), self.height())  # disable window resizing
 
     def createPixmap(self):
-        paddedExitWave = imsup.PadImageBufferToNx512(self.image, np.max(self.image.buffer))
-        qImg = QtGui.QImage(imsup.ScaleImage(paddedExitWave.buffer, 0.0, 255.0).astype(np.uint8),
-                            paddedExitWave.width, paddedExitWave.height, QtGui.QImage.Format_Indexed8)
+        paddedImage = imsup.PadImageBufferToNx512(self.image, np.max(self.image.buffer))
+        qImg = QtGui.QImage(imsup.ScaleImage(paddedImage.buffer, 0.0, 255.0).astype(np.uint8),
+                            paddedImage.width, paddedImage.height, QtGui.QImage.Format_Indexed8)
         # qImg = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
         #                     self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
         pixmap = QtGui.QPixmap(qImg)
@@ -158,6 +167,7 @@ class TriangulateWidget(QtGui.QWidget):
             if len(self.pointSets) < self.image.numInSeries:
                 return
             for pt, idx in zip(self.pointSets[self.image.numInSeries-1], range(1, len(self.pointSets[self.image.numInSeries-1])+1)):
+                print(self.image.numInSeries, pt)
                 lab = QtGui.QLabel('{0}'.format(idx), self.display)
                 lab.setStyleSheet('font-size:18pt; background-color:white; border:1px solid rgb(0, 0, 0);')
                 lab.move(pt[0], pt[1])
@@ -330,8 +340,6 @@ class TriangulateWidget(QtGui.QWidget):
 
         # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
         img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
-
-        # TUTAJ COS NIE TAK
         # img2Rot = imsup.RotateImage(img2Rc, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
@@ -342,10 +350,85 @@ class TriangulateWidget(QtGui.QWidget):
         img2Rot.UpdateBuffer()
         tmpImgList = imsup.ImageList([ self.image, img1RcPad, img2Rot ])
         tmpImgList.UpdateLinks()
+        for img in tmpImgList:
+            print(img.numInSeries)
+        self.pointSets.append([])
         self.pointSets.append([])
         self.changePixmap(True)
 
         print('Triangulation complete!')
+
+    def warpImageManual(self, moreAccurate=False):
+        currImg = self.image
+        currIdx = self.image.numInSeries - 1
+        realPoints1 = CalcRealCoordsForSetOfPoints(currImg.width, self.pointSets[currIdx-1])
+        realPoints2 = CalcRealCoordsForSetOfPoints(currImg.width, self.pointSets[currIdx])
+        userPoints1 = CalcTopLeftCoordsForSetOfPoints(currImg.width, realPoints1)
+        userPoints2 = CalcTopLeftCoordsForSetOfPoints(currImg.width, realPoints2)
+        print(userPoints1)
+        print(userPoints2)
+
+        if moreAccurate:
+            nDiv = const.nDivForUnwarp
+            fragDimSize = currImg.width // nDiv
+
+            # points #1
+            gridPoints1 = [ (b, a) for a in range(nDiv) for b in range(nDiv) ]
+            gridPoints1 = [ [ gptx * fragDimSize for gptx in gpt ] for gpt in gridPoints1 ]
+
+            for pt1 in userPoints1:
+                closestNode = [ np.floor(x / fragDimSize) * fragDimSize for x in pt1 ]
+                gridPoints1 = [ pt1 if gridNode == closestNode else gridNode for gridNode in gridPoints1 ]
+
+            src = np.array(gridPoints1)
+
+            # points #2
+            gridPoints2 = [ (b, a) for a in range(nDiv) for b in range(nDiv) ]
+            gridPoints2 = [ [ gptx * fragDimSize for gptx in gpt ] for gpt in gridPoints2 ]
+            for pt2 in userPoints2:
+                closestNode = [ np.floor(x / fragDimSize) * fragDimSize for x in pt2 ]
+                gridPoints2 = [ pt2 if gridNode == closestNode else gridNode for gridNode in gridPoints2 ]
+
+            dst = np.array(gridPoints2)
+
+        else:
+            src = np.array(userPoints1)
+            dst = np.array(userPoints2)
+
+        print('src = {0}'.format(src))
+        print('dst = {0}'.format(dst))
+
+        currImg.MoveToCPU()
+        oldMin, oldMax = np.min(currImg.amPh.am), np.max(currImg.amPh.am)
+        scaledArray = imsup.ScaleImage(currImg.amPh.am, -1.0, 1.0)
+
+        tform3 = tf.ProjectiveTransform()
+        tform3.estimate(src, dst)
+        warped = tf.warp(scaledArray, tform3, output_shape=(currImg.height, currImg.width)).astype(np.float32)
+        warpedScaledBack = imsup.ScaleImage(warped, oldMin, oldMax)
+
+        imgWarped = imsup.ImageWithBuffer(currImg.height, currImg.width, num=currImg.numInSeries+1)
+        imgWarped.amPh.am = np.copy(warpedScaledBack)
+        imgWarped.UpdateBuffer()
+        self.image.next = imgWarped
+        imgWarped.prev = self.image
+        self.pointSets.append([])
+        self.changePixmap(True)
+
+    def warpImage(self):
+        nDiv = const.nDivForUnwarp
+        fragCoords = [(b, a) for a in range(nDiv) for b in range(nDiv)]
+        imgRef = self.image.prev
+        imgToWarp = self.image
+        img2Warped = uw.UnwarpImage(imgRef, imgToWarp, nDiv, fragCoords)
+        img2Warped = imsup.CreateImageWithBufferFromImage(img2Warped)
+        img2Warped.MoveToCPU()
+        self.image.next = img2Warped
+        img2Warped.prev = self.image
+        img2Warped.numInSeries = self.image.numInSeries + 1
+        self.pointSets.append([])
+        self.changePixmap()
+        print('Warping complete!')
 
     def rotateManual(self):
         # img2Rot = tr.RotateImageSki2(self.image, self.image.rot, cut=False)
@@ -383,17 +466,27 @@ class TriangulateWidget(QtGui.QWidget):
         [ pt1, pt2 ] = self.pointSets[self.image.numInSeries-1][:2]
         dispCropCoords = pt1 + pt2
         realCropCoords = imsup.MakeSquareCoords(CalcRealTLCoordsForPaddedImage(self.image.width, dispCropCoords))
-        img1 = self.image
-        img1Crop = imsup.CropImageROICoords(img1, realCropCoords)
-        imsup.SaveAmpImage(img1Crop, 'crop1.png')
 
-        if self.image.prev is not None:
-            img2 = self.image.prev
-            img2Crop = imsup.CropImageROICoords(img2, realCropCoords)
-            imsup.SaveAmpImage(img2Crop, 'crop2.png')
+        imgCurr = self.image
+        imgCurrCrop = imsup.CropImageROICoords(imgCurr, realCropCoords)
+        imgCurrCrop = imsup.CreateImageWithBufferFromImage(imgCurrCrop)
+        imgCurrCrop.MoveToCPU()
+        # imsup.SaveAmpImage(imgCurrCrop, 'crop1.png')
 
-    def unWarpImage(self):
-        pass
+        # if imgCurr.prev is not None:
+        imgPrev = imgCurr.prev
+        imgPrevCrop = imsup.CropImageROICoords(imgPrev, realCropCoords)
+        imgPrevCrop = imsup.CreateImageWithBufferFromImage(imgPrevCrop)
+        imgPrevCrop.MoveToCPU()
+        # imsup.SaveAmpImage(imgPrevCrop, 'crop2.png')
+
+        cropImgList = imsup.ImageList([self.image, imgPrevCrop, imgCurrCrop])
+        cropImgList.UpdateLinks()
+        for img in cropImgList:
+            print(img.numInSeries)
+        self.pointSets.append([])
+        self.pointSets.append([])
+        self.changePixmap(True)
 
     def exportImage(self):
         fName = 'img{0}.png'.format(self.image.numInSeries)
@@ -415,7 +508,7 @@ def LoadImageSeriesFromFirstFile(imgPath):
         img = imsup.ImageWithBuffer(const.dimSize, const.dimSize, imsup.Image.cmp['CAP'], imsup.Image.mem['CPU'])
         img.LoadAmpData(np.sqrt(imgMatrix).astype(np.float32))
         # ---
-        imsup.RemovePixelArtifacts(img, const.badPxThreshold)
+        imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
         img.UpdateBuffer()
         # ---
         img.numInSeries = imgNum
@@ -439,11 +532,23 @@ def CalcTopLeftCoords(imgWidth, midCoords):
 
 # --------------------------------------------------------
 
+def CalcTopLeftCoordsForSetOfPoints(imgWidth, points):
+    topLeftPoints = [ CalcTopLeftCoords(imgWidth, pt) for pt in points ]
+    return topLeftPoints
+
+# --------------------------------------------------------
+
 def CalcRealCoords(imgWidth, dispCoords):
     dispWidth = const.ccWidgetDim
     factor = imgWidth / dispWidth
-    realCoords = [ (dc - dispWidth // 2) * factor for dc in dispCoords ]
+    realCoords = [ int((dc - dispWidth // 2) * factor) for dc in dispCoords ]
     return realCoords
+
+# --------------------------------------------------------
+
+def CalcRealCoordsForSetOfPoints(imgWidth, points):
+    realPoints = [ CalcRealCoords(imgWidth, pt) for pt in points ]
+    return realPoints
 
 # --------------------------------------------------------
 
@@ -454,7 +559,7 @@ def CalcRealTLCoordsForPaddedImage(imgWidth, dispCoords):
     factor = padImgWidthReal / dispWidth
     # dispPad = pad / factor
     # realCoords = [ (dc - dispPad) * factor for dc in dispCoords ]
-    realCoords = [ dc * factor - pad  for dc in dispCoords ]
+    realCoords = [ int(dc * factor - pad) for dc in dispCoords ]
     return realCoords
 
 # --------------------------------------------------------
