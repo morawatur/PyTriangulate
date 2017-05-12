@@ -327,8 +327,8 @@ class TriangulateWidget(QtGui.QWidget):
         # print('---- Triangle 2 ----')
         # print([ 'R{0} = {1:.2f} px\n'.format(idx + 1, dist) for idx, dist in zip(range(3), tr2Dists) ])
         # print([ 'alpha{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), tr2InnerAngles) ])
-        # print('---- Magnification ----')
-        # print([ 'mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(3), mags) ])
+        print('---- Magnification ----')
+        print([ 'mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(3), mags) ])
         print('---- Rotation ----')
         print([ 'phi{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), rotAngles) ])
         # print('---- Shifts ----')
@@ -508,8 +508,8 @@ def LoadImageSeriesFromFirstFile(imgPath):
         img = imsup.ImageWithBuffer(const.dimSize, const.dimSize, imsup.Image.cmp['CAP'], imsup.Image.mem['CPU'])
         img.LoadAmpData(np.sqrt(imgMatrix).astype(np.float32))
         # ---
-        imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
-        img.UpdateBuffer()
+        # imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
+        # img.UpdateBuffer()
         # ---
         img.numInSeries = imgNum
         imgList.append(img)
