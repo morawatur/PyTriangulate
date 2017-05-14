@@ -236,7 +236,9 @@ def AmPh2ReIm_dev(am, ph, reIm):
 def PrepareImageMatrix(imgData, dimSize):
     imgArray = np.asarray(imgData)
     imgMatrix = np.reshape(imgArray, (-1, dimSize))
-    imgMatrix = np.abs(imgMatrix)
+    if len(imgMatrix[imgMatrix < 0]) > 0:
+        imgMatrix += np.abs(np.min(imgMatrix))
+    # imgMatrix = np.abs(imgMatrix)         # some pixels can have negative values
     return imgMatrix
 
 #-------------------------------------------------------------------
