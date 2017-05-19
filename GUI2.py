@@ -506,7 +506,8 @@ def LoadImageSeriesFromFirstFile(imgPath):
         imgData = dm3.ReadDm3File(imgPath)
         imgMatrix = imsup.PrepareImageMatrix(imgData, const.dimSize)
         img = imsup.ImageWithBuffer(const.dimSize, const.dimSize, imsup.Image.cmp['CAP'], imsup.Image.mem['CPU'])
-        img.LoadAmpData(np.sqrt(imgMatrix).astype(np.float32))
+        # img.LoadAmpData(np.sqrt(imgMatrix).astype(np.float32))
+        img.LoadAmpData(imgMatrix.astype(np.float32))      # we can't calculate sqrt if some pixel values are negative
         # ---
         # imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
         # img.UpdateBuffer()
