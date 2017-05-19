@@ -7,7 +7,6 @@ idxInFocus = numInFocus - 1
 refIdx = 10
 predefDfStep = 2.0e-9
 nIterations = 20
-magda = "baranska"
 # pxWidth = 718.243e-12
 # pxWidth = 359.122e-12
 # pxWidth = 286.515e-12
