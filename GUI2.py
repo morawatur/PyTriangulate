@@ -597,15 +597,15 @@ def CalcNewCoords(p1, newCenter):
 
 # --------------------------------------------------------
 
-# tu jeszcze cos nie tak (03-04-2017)
+# chyba naprawilem problem z katami (19-05-2017)
 def CalcRotAngle(p1, p2):
     z1 = np.complex(p1[0], p1[1])
     z2 = np.complex(p2[0], p2[1])
     phi1 = np.angle(z1)
     phi2 = np.angle(z2)
     rotAngle = np.abs(imsup.Degrees(phi2 - phi1))
-    # if rotAngle < 0:
-    #     rotAngle = 360 - np.abs(rotAngle)
+    if rotAngle > 180:
+        rotAngle = 360 - np.abs(rotAngle)
     return rotAngle
 
 # --------------------------------------------------------
