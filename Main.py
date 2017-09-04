@@ -1,6 +1,7 @@
 from numba import cuda
 import Constants as const
-import GUI2 as gui
+# import GUI2 as gui
+import GUI3 as gui
 import ImageSupport as imsup
 import CrossCorr as cc
 import time
