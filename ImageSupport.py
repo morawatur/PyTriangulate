@@ -74,9 +74,9 @@ class Image:
     capVar = {'AM': 0, 'PH': 1}
     criVar = {'RE': 0, 'IM': 1}
     mem = {'CPU': 0, 'GPU': 1}
-    pxWidth = const.pxWidth
+    px_dim_default = 1.0
 
-    def __init__(self, height, width, cmpRepr=cmp['CAP'], memType=mem['CPU'], defocus=0.0, num=1):
+    def __init__(self, height, width, cmpRepr=cmp['CAP'], memType=mem['CPU'], defocus=0.0, num=1, px_dim_sz=-1.0):
         self.width = width
         self.height = height
         self.size = width * height
@@ -93,6 +93,9 @@ class Image:
         self.numInSeries = num
         self.prev = None
         self.next = None
+        self.px_dim = px_dim_sz
+        if px_dim_sz < 0:
+            self.px_dim = self.px_dim_default
         # ClearImageData(self)
 
     def __del__(self):
@@ -152,8 +155,8 @@ class Image:
 # -------------------------------------------------------------------
 
 class ImageWithBuffer(Image):
-    def __init__(self, height, width, cmpRepr=Image.cmp['CAP'], memType=Image.mem['CPU'], defocus=0.0, num=1):
-        super(ImageWithBuffer, self).__init__(height, width, cmpRepr, memType, defocus, num)
+    def __init__(self, height, width, cmpRepr=Image.cmp['CAP'], memType=Image.mem['CPU'], defocus=0.0, num=1, px_dim_sz=-1.0):
+        super(ImageWithBuffer, self).__init__(height, width, cmpRepr, memType, defocus, num, px_dim_sz)
         self.parent = super(ImageWithBuffer, self)
         self.shift = [0, 0]
         self.rot = 0
@@ -956,14 +959,24 @@ def RemovePixelArtifacts(img, minThreshold=0.7, maxThreshold=1.3):
 
     arr = np.copy(img.amPh.am)
     arrAvg = np.average(arr)
-    badPixelIndices = np.where(arr >= (maxThreshold * arrAvg)) and np.where(arr <= (minThreshold * arrAvg))
-    arrCorr = arr * (arr < (maxThreshold * arrAvg)) + arr * (arr > (minThreshold * arrAvg))
-    print('Registered {0} bad pixels'.format(len(badPixelIndices[0])))
+    print(arrAvg)
+    print(np.min(arr))
+    print(np.max(arr))
+    badPixels1 = np.where(arr >= (maxThreshold * arrAvg))
+    badPixels2 = np.where(arr <= (minThreshold * arrAvg))
+    arrCorr1 = arr * (arr < (maxThreshold * arrAvg))
+    arrCorr2 = arrCorr1 * (arrCorr1 > (minThreshold * arrAvg))
+    # print('Registered {0} bad pixels'.format(len(badPixelIndices[0])))
 
-    for y, x in zip(badPixelIndices[0], badPixelIndices[1]):
-        arrCorr[y, x] = np.sum(arrCorr[y-1:y+2, x-1:x+2]) / 8.0
+    for y, x in zip(badPixels1[0], badPixels1[1]):
+        # arrCorr2[y, x] = np.sum(arrCorr2[y-1:y+2, x-1:x+2]) / 8.0
+        arrCorr2[y, x] = arrAvg
+    for y, x in zip(badPixels2[0], badPixels2[1]):
+        # arrCorr2[y, x] = np.sum(arrCorr2[y-1:y+2, x-1:x+2]) / 8.0
+        arrCorr2[y, x] = arrAvg
 
-    img.amPh.am = np.copy(arrCorr)
+    img.amPh.am = np.copy(arrCorr2)
+    img.buffer = np.copy(arrCorr2)
     img.ChangeMemoryType(mt)
     img.ChangeComplexRepr(dt)
 

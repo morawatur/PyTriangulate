@@ -7,7 +7,7 @@ from scipy import interpolate
 from scipy import ndimage
 from skimage import transform as tf
 from PyQt4 import QtGui, QtCore
-import Dm3Reader3 as dm3
+import Dm3Reader3_New as dm3
 import Constants as const
 import ImageSupport as imsup
 import CrossCorr as cc
@@ -28,6 +28,7 @@ class LabelExt(QtGui.QLabel):
         self.setImage()
         self.pointSets = [[]]
         self.show_lines = True
+        self.show_labs = True
         # while image.next is not None:
         #    self.pointSets.append([])
 
@@ -42,9 +43,11 @@ class LabelExt(QtGui.QLabel):
         qp.setRenderHint(QtGui.QPainter.Antialiasing, True)
         imgIdx = self.image.numInSeries - 1
         qp.setPen(linePen)
+        qp.setBrush(QtCore.Qt.yellow)
         for pt in self.pointSets[imgIdx]:
-            rect = QtCore.QRect(pt[0]-9, pt[1]-9, 19, 19)
-            qp.drawArc(rect, 0, 16*360)
+            # rect = QtCore.QRect(pt[0]-3, pt[1]-3, 7, 7)
+            # qp.drawArc(rect, 0, 16*360)
+            qp.drawEllipse(pt[0]-3, pt[1]-3, 7, 7)
         if self.show_lines:
             linePen.setWidth(2)
             qp.setPen(linePen)
@@ -61,8 +64,8 @@ class LabelExt(QtGui.QLabel):
         self.repaint()
 
         lab = QtGui.QLabel('{0}'.format(len(self.pointSets[self.image.numInSeries - 1])), self)
-        lab.setStyleSheet('font-size:18pt; background-color:white; border:1px solid rgb(0, 0, 0);')
-        lab.move(pos.x()+6, pos.y()+6)
+        lab.setStyleSheet('font-size:14pt; background-color:white; border:1px solid rgb(0, 0, 0);')
+        lab.move(pos.x()+4, pos.y()+4)
         lab.show()
 
     def setImage(self):
@@ -90,8 +93,21 @@ class LabelExt(QtGui.QLabel):
         imgIdx = self.image.numInSeries - 1
         for pt, idx in zip(self.pointSets[imgIdx], range(1, len(self.pointSets[imgIdx]) + 1)):
             lab = QtGui.QLabel('{0}'.format(idx), self)
-            lab.setStyleSheet('font-size:18pt; background-color:white; border:1px solid rgb(0, 0, 0);')
-            lab.move(pt[0]+6, pt[1]+6)
+            lab.setStyleSheet('font-size:14pt; background-color:white; border:1px solid rgb(0, 0, 0);')
+            lab.move(pt[0]+4, pt[1]+4)
+            lab.show()
+
+    def hide_labels(self):
+        labsToDel = self.children()
+        for child in labsToDel:
+            child.deleteLater()
+
+    def show_labels(self):
+        imgIdx = self.image.numInSeries - 1
+        for pt, idx in zip(self.pointSets[imgIdx], range(1, len(self.pointSets[imgIdx]) + 1)):
+            lab = QtGui.QLabel('{0}'.format(idx), self)
+            lab.setStyleSheet('font-size:14pt; background-color:white; border:1px solid rgb(0, 0, 0);')
+            lab.move(pt[0] + 4, pt[1] + 4)
             lab.show()
 
 # --------------------------------------------------------
@@ -162,6 +178,10 @@ class TriangulateWidget(QtGui.QWidget):
         self.show_lines_checkbox.setChecked(True)
         self.show_lines_checkbox.toggled.connect(self.toggle_lines)
 
+        self.show_labels_checkbox = QtGui.QCheckBox('Show labels', self)
+        self.show_labels_checkbox.setChecked(True)
+        self.show_labels_checkbox.toggled.connect(self.toggle_labels)
+
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
         hbox_nav.addWidget(nextButton)
@@ -211,6 +231,8 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_warp = QtGui.QVBoxLayout()
         vbox_warp.addWidget(self.show_lines_checkbox)
         vbox_warp.addStretch(1)
+        vbox_warp.addWidget(self.show_labels_checkbox)
+        vbox_warp.addStretch(1)
         vbox_warp.addWidget(warpButton)
 
         hbox_panel = QtGui.QHBoxLayout()
@@ -242,6 +264,13 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.show_lines = not self.display.show_lines
         self.display.repaint()
 
+    def toggle_labels(self):
+        self.display.show_labs = not self.display.show_labs
+        if self.display.show_labs:
+            self.display.show_labels()
+        else:
+            self.display.hide_labels()
+
     # def mouseReleaseEvent(self, QMouseEvent):
     #     pos = QMouseEvent.pos()
     #     currPos = [pos.x(), pos.y()]
@@ -265,7 +294,9 @@ class TriangulateWidget(QtGui.QWidget):
             self.triangulateAdvanced()
 
     def triangulateBasic(self):
-        triangles = [ [ CalcRealCoords(const.dimSize, self.display.pointSets[trIdx][pIdx]) for pIdx in range(3) ] for trIdx in range(2) ]
+        img_width = self.display.image.width
+        print(img_width)
+        triangles = [ [ CalcRealCoords(img_width, self.display.pointSets[trIdx][pIdx]) for pIdx in range(3) ] for trIdx in range(2) ]
         tr1Dists = [ CalcDistance(triangles[0][pIdx1], triangles[0][pIdx2]) for pIdx1, pIdx2 in zip([0, 0, 1], [1, 2, 2]) ]
         tr2Dists = [ CalcDistance(triangles[1][pIdx1], triangles[1][pIdx2]) for pIdx1, pIdx2 in zip([0, 0, 1], [1, 2, 2]) ]
 
@@ -328,7 +359,8 @@ class TriangulateWidget(QtGui.QWidget):
     def triangulateAdvanced(self):
         print(self.display.pointSets[0])
         print(self.display.pointSets[1])
-        triangles = [ [ CalcRealCoords(const.dimSize, self.display.pointSets[trIdx][pIdx]) for pIdx in range(3) ] for trIdx in range(2) ]
+        img_width = self.display.image.width
+        triangles = [ [ CalcRealCoords(img_width, self.display.pointSets[trIdx][pIdx]) for pIdx in range(3) ] for trIdx in range(2) ]
 
         tr1Dists = [ CalcDistance(triangles[0][pIdx1], triangles[0][pIdx2]) for pIdx1, pIdx2 in zip([0, 0, 1], [1, 2, 2]) ]
         tr2Dists = [ CalcDistance(triangles[1][pIdx1], triangles[1][pIdx2]) for pIdx1, pIdx2 in zip([0, 0, 1], [1, 2, 2]) ]
@@ -572,16 +604,20 @@ def LoadImageSeriesFromFirstFile(imgPath):
 
     while path.isfile(imgPath):
         print('Reading file "' + imgPath + '"')
-        imgData = dm3.ReadDm3File(imgPath)
-        imgMatrix = imsup.PrepareImageMatrix(imgData, const.dimSize)
-        img = imsup.ImageWithBuffer(const.dimSize, const.dimSize, imsup.Image.cmp['CAP'], imsup.Image.mem['CPU'])
-        # img.LoadAmpData(np.sqrt(imgMatrix).astype(np.float32))
-        img.LoadAmpData(imgMatrix.astype(np.float32))      # we can't calculate sqrt if some pixel values are negative
+        imgData, pxDims = dm3.ReadDm3File(imgPath)
+        imsup.Image.px_dim_default = pxDims[0]
+        imgData = np.abs(imgData)
+        img = imsup.ImageWithBuffer(imgData.shape[0], imgData.shape[1], imsup.Image.cmp['CAP'], imsup.Image.mem['CPU'],
+                                    num=imgNum, px_dim_sz=pxDims[0])
+        img.LoadAmpData(np.sqrt(imgData).astype(np.float32))
         # ---
         # imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
         # img.UpdateBuffer()
         # ---
-        img.numInSeries = imgNum
+        arrAvg = np.average(img.buffer)
+        print(arrAvg)
+        print(np.min(img.buffer))
+        print(np.max(img.buffer))
         imgList.append(img)
 
         imgNum += 1
@@ -634,8 +670,7 @@ def CalcRealTLCoordsForPaddedImage(imgWidth, dispCoords):
 
 # --------------------------------------------------------
 
-def CalcDispCoords(dispWidth, realCoords):
-    imgWidth = const.dimSize
+def CalcDispCoords(dispWidth, imgWidth, realCoords):
     factor = dispWidth / imgWidth
     dispCoords = [ (rc * factor) + const.ccWidgetDim // 2 for rc in realCoords ]
     return dispCoords
@@ -675,8 +710,8 @@ def CalcRotAngle(p1, p2):
     phi2 = np.angle(z2)
     rotAngle = np.abs(imsup.Degrees(phi2 - phi1))
     if rotAngle > 180:
-        rotAngle = 360 - np.abs(rotAngle)
-    return rotAngle
+        rotAngle = 360 - rotAngle
+    return -rotAngle
 
 # --------------------------------------------------------
 

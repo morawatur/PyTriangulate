@@ -7,7 +7,7 @@ from scipy import interpolate
 from scipy import ndimage
 from skimage import transform as tf
 from PyQt4 import QtGui, QtCore
-import Dm3Reader3 as dm3
+import Dm3Reader3_New as dm3
 import Constants as const
 import ImageSupport as imsup
 import CrossCorr as cc
@@ -503,16 +503,16 @@ def LoadImageSeriesFromFirstFile(imgPath):
 
     while path.isfile(imgPath):
         print('Reading file "' + imgPath + '"')
-        imgData = dm3.ReadDm3File(imgPath)
-        imgMatrix = imsup.PrepareImageMatrix(imgData, const.dimSize)
-        img = imsup.ImageWithBuffer(const.dimSize, const.dimSize, imsup.Image.cmp['CAP'], imsup.Image.mem['CPU'])
-        # img.LoadAmpData(np.sqrt(imgMatrix).astype(np.float32))
-        img.LoadAmpData(imgMatrix.astype(np.float32))      # we can't calculate sqrt if some pixel values are negative
+        imgData, pxDims = dm3.ReadDm3File(imgPath)
+        imsup.Image.px_dim_default = pxDims[0]
+        imgData = np.abs(imgData)
+        img = imsup.ImageWithBuffer(imgData.shape[0], imgData.shape[1], imsup.Image.cmp['CAP'], imsup.Image.mem['CPU'],
+                                    num=imgNum, px_dim_sz=pxDims[0])
+        img.LoadAmpData(np.sqrt(imgData).astype(np.float32))
         # ---
-        # imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
-        # img.UpdateBuffer()
+        imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
+        img.UpdateBuffer()
         # ---
-        img.numInSeries = imgNum
         imgList.append(img)
 
         imgNum += 1
