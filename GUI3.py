@@ -438,8 +438,8 @@ class TriangulateWidget(QtGui.QWidget):
         print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
         # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
 
-        # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
-        img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
+        img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
+        img2Rot = tr.RotateImageSki2(img2Mag, rotAngleAvg, cut=False)
         # img2Rot = imsup.RotateImage(img2Rc, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
@@ -612,12 +612,13 @@ def LoadImageSeriesFromFirstFile(imgPath):
         img.LoadAmpData(np.sqrt(imgData).astype(np.float32))
         # ---
         # imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
-        # img.UpdateBuffer()
+        imsup.RemovePixelArtifacts(img, 0.7, 1.3)
+        img.UpdateBuffer()
         # ---
-        arrAvg = np.average(img.buffer)
-        print(arrAvg)
-        print(np.min(img.buffer))
-        print(np.max(img.buffer))
+        # arrAvg = np.average(img.buffer)
+        # print(arrAvg)
+        # print(np.min(img.buffer))
+        # print(np.max(img.buffer))
         imgList.append(img)
 
         imgNum += 1
