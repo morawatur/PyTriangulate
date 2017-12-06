@@ -169,6 +169,9 @@ class ImageWithBuffer(Image):
         self.amPh.am = np.copy(ampData)
         self.buffer = np.copy(ampData)
 
+    def LoadPhsData(self, phsData):
+        self.amPh.ph = np.copy(phsData)
+
     def UpdateBuffer(self):
         if self.memType == self.mem['CPU']:
             self.buffer = np.copy(self.amPh.am)
@@ -681,8 +684,8 @@ def PadImageBufferToNx512(img, padValue):
     dimFactor = 512
     imgBufHeight = img.buffer.shape[0]
     imgBufWidth = img.buffer.shape[1]
-    pHeight = np.ceil(imgBufHeight / dimFactor) * dimFactor
-    pWidth = np.ceil(imgBufWidth / dimFactor) * dimFactor
+    pHeight = int(np.ceil(imgBufHeight / dimFactor) * dimFactor)
+    pWidth = int(np.ceil(imgBufWidth / dimFactor) * dimFactor)
     ltPadding = (pHeight - imgBufHeight) // 2
     rbPadding = ltPadding if not imgBufHeight % 2 else ltPadding + 1
     mt = img.memType

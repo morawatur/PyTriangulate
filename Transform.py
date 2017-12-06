@@ -33,20 +33,25 @@ def RescaleImageSki(img, factor):
     img.ReIm2AmPh()
     img.MoveToCPU()
 
-    limits = [np.min(img.amPh.am), np.max(img.amPh.am)]
-    ampScaled = imsup.ScaleImage(img.amPh.am, -1.0, 1.0)
-    ampMag = tr.rescale(ampScaled, scale=factor).astype(np.float32)
-    ampMagRescaled = imsup.ScaleImage(ampMag, limits[0], limits[1])
+    amp_limits = [np.min(img.amPh.am), np.max(img.amPh.am)]
+    phs_limits = [np.min(img.amPh.ph), np.max(img.amPh.ph)]
+    amp_scaled = imsup.ScaleImage(img.amPh.am, -1.0, 1.0)
+    phs_scaled = imsup.ScaleImage(img.amPh.ph, -1.0, 1.0)
+    amp_mag = tr.rescale(amp_scaled, scale=factor).astype(np.float32)
+    phs_mag = tr.rescale(phs_scaled, scale=factor).astype(np.float32)
+    amp_mag_rescaled = imsup.ScaleImage(amp_mag, amp_limits[0], amp_limits[1])
+    phs_mag_rescaled = imsup.ScaleImage(phs_mag, phs_limits[0], phs_limits[1])
 
-    imgMag = imsup.ImageWithBuffer(ampMag.shape[0], ampMag.shape[1], defocus=img.defocus, num=img.numInSeries)
-    imgMag.LoadAmpData(ampMagRescaled)
+    img_mag = imsup.ImageWithBuffer(amp_mag.shape[0], amp_mag.shape[1], defocus=img.defocus, num=img.numInSeries)
+    img_mag.LoadAmpData(amp_mag_rescaled)
+    img_mag.LoadPhsData(phs_mag_rescaled)
 
     img.ChangeMemoryType(mt)
     img.ChangeComplexRepr(dt)
-    imgMag.ChangeMemoryType(mt)
-    imgMag.ChangeComplexRepr(dt)
+    img_mag.ChangeMemoryType(mt)
+    img_mag.ChangeComplexRepr(dt)
 
-    return imgMag
+    return img_mag
 
 #-------------------------------------------------------------------
 
