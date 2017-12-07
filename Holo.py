@@ -46,26 +46,26 @@ def insert_aperture(img, ap):
 
 # -------------------------------------------------------------------
 
-# zrobic tak, zeby hann window dzialal tylko na obszar NxN w srodku obrazu
 def mult_by_hann_window(img, N=100):
     new_img = imsup.CopyImage(img)
     new_img.ReIm2AmPh()
     new_img.MoveToCPU()
 
-    hann = np.hanning(img.width)
+    hann = np.hanning(N)
     hann_2d = np.sqrt(np.outer(hann, hann))
 
-    hann_win = imsup.ImageWithBuffer(hann_2d.shape[0], hann_2d.shape[1])
+    hann_win = imsup.ImageWithBuffer(N, N)
     hann_win.LoadAmpData(hann_2d)
     imsup.SaveAmpImage(hann_win, 'hann.png')
 
-    new_img.amPh.am *= hann_2d
-    new_img.amPh.ph *= hann_2d
+    hmin, hmax = (img.width - N) // 2, (img.width + N) // 2
+    new_img.amPh.am[hmin:hmax, hmin:hmax] *= hann_2d
+    new_img.amPh.ph[hmin:hmax, hmin:hmax] *= hann_2d
     return new_img
 
 #-------------------------------------------------------------------
 
-def rec_holo_no_ref(holo_img, rec_sz=128, ap_sz=32, mask_sz=50):
+def rec_holo_no_ref(holo_img, rec_sz=128, ap_sz=32, mask_sz=50, N_hann=100):
     holo_fft = cc.FFT(holo_img)
     holo_fft = cc.FFT2Diff(holo_fft)    # diff is re_im
     holo_fft.ReIm2AmPh()
@@ -83,7 +83,7 @@ def rec_holo_no_ref(holo_img, rec_sz=128, ap_sz=32, mask_sz=50):
     shift = [ mid - sband_xy[0], mid - sband_xy[1] ]
     sband_img = cc.ShiftImage(holo_fft, shift)
 
-    sband_img_ap = mult_by_hann_window(sband_img)
+    sband_img_ap = mult_by_hann_window(sband_img, N=N_hann)
     sband_img_ap = insert_aperture(sband_img_ap, ap_sz)
     imsup.SaveAmpImage(sband_img_ap, 'sband_am.png')
     imsup.SavePhaseImage(sband_img_ap, 'sband_ph.png')
@@ -99,7 +99,32 @@ def rec_holo_no_ref(holo_img, rec_sz=128, ap_sz=32, mask_sz=50):
 
     # imsup.SaveAmpImage(rec_holo_resc, 'amp.png')
     # imsup.SavePhaseImage(rec_holo_resc, 'phs.png')
+    rec_holo = imsup.CreateImageWithBufferFromImage(rec_holo)
     return rec_holo
+
+#-------------------------------------------------------------------
+
+def calc_phase_sum(img1, img2):
+    img1.ReIm2AmPh()
+    img2.ReIm2AmPh()
+    img1.MoveToCPU()
+    img2.MoveToCPU()
+
+    phs_sum = imsup.ImageWithBuffer(img1.height, img1.width)
+    phs_sum.amPh.ph = img1.amPh.ph + img2.amPh.ph
+    return phs_sum
+
+#-------------------------------------------------------------------
+
+def calc_phase_diff(img1, img2):
+    img1.ReIm2AmPh()
+    img2.ReIm2AmPh()
+    img1.MoveToCPU()
+    img2.MoveToCPU()
+
+    phs_diff = imsup.ImageWithBuffer(img1.height, img1.width)
+    phs_diff.amPh.ph = img1.amPh.ph - img2.amPh.ph
+    return phs_diff
 
 #-------------------------------------------------------------------
 
@@ -114,5 +139,5 @@ def read_dm3_file(fpath):
 
 #-------------------------------------------------------------------
 
-holo_image = read_dm3_file('holo.dm3')
-rec_holo = rec_holo_no_ref(holo_image, ap_sz=32)
+# holo_image = read_dm3_file('holo.dm3')
+# rec_holo = rec_holo_no_ref(holo_image, ap_sz=64, N_hann=500)

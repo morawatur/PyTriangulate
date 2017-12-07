@@ -152,6 +152,10 @@ class Image:
         if mt == self.mem['CPU']:
             self.MoveToCPU()
 
+    def get_num_in_series_from_prev(self):
+        if self.prev is not None:
+            self.numInSeries = self.prev.numInSeries + 1
+
 # -------------------------------------------------------------------
 
 class ImageWithBuffer(Image):
@@ -614,6 +618,14 @@ def CopyImage(img):
     imgCopy.reIm.copy_to_device(img.reIm)
     # imgCopy.ReIm2AmPh()         # !!!
     # imgCopy.UpdateBuffer()      # !!!
+
+    if img.prev is not None:
+        imgCopy.prev = img.prev
+        img.prev.next = imgCopy
+    if img.next is not None:
+        imgCopy.next = img.next
+        img.next.prev = imgCopy
+
     img.ChangeComplexRepr(dt)
     img.ChangeMemoryType(mt)
     imgCopy.ChangeComplexRepr(dt)
@@ -962,9 +974,7 @@ def RemovePixelArtifacts(img, minThreshold=0.7, maxThreshold=1.3):
 
     arr = np.copy(img.amPh.am)
     arrAvg = np.average(arr)
-    print(arrAvg)
-    print(np.min(arr))
-    print(np.max(arr))
+
     badPixels1 = np.where(arr >= (maxThreshold * arrAvg))
     badPixels2 = np.where(arr <= (minThreshold * arrAvg))
     arrCorr1 = arr * (arr < (maxThreshold * arrAvg))
@@ -983,3 +993,46 @@ def RemovePixelArtifacts(img, minThreshold=0.7, maxThreshold=1.3):
     img.ChangeMemoryType(mt)
     img.ChangeComplexRepr(dt)
 
+#-------------------------------------------------------------------
+
+def move_to_ri_cpu(img):
+    mt = img.memType
+    dt = img.cmpRepr
+    img.AmPh2ReIm()
+    img.MoveToCPU()
+    return mt, dt
+
+#-------------------------------------------------------------------
+
+def move_to_ap_cpu(img):
+    mt = img.memType
+    dt = img.cmpRepr
+    img.ReIm2AmPh()
+    img.MoveToCPU()
+    return mt, dt
+
+#-------------------------------------------------------------------
+
+def restore_img_mt_dt(img, mt, dt):
+    img.ChangeMemoryType(mt)
+    img.ChangeComplexRepr(dt)
+
+#-------------------------------------------------------------------
+
+def flip_image_h(img):
+    mt, dt = move_to_ri_cpu(img)
+    img_flip = CopyImage(img)
+    img_flip.reIm = np.copy(np.fliplr(img.reIm))
+    img_flip.ReIm2AmPh()
+    restore_img_mt_dt(img, mt, dt)
+    return img_flip
+
+#-------------------------------------------------------------------
+
+def flip_image_v(img):
+    mt, dt = move_to_ri_cpu(img)
+    img_flip = CopyImage(img)
+    img_flip.reIm = np.copy(np.flipud(img.reIm))
+    img_flip.ReIm2AmPh()
+    restore_img_mt_dt(img, mt, dt)
+    return img_flip
