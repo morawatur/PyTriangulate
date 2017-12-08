@@ -285,6 +285,7 @@ class TriangulateWidget(QtGui.QWidget):
 
         cropImgList.UpdateLinks()
         self.display.pointSets.append([])
+        print(len(self.display.pointSets))
         self.goToNextImage()
 
     def exportImage(self):
@@ -299,6 +300,9 @@ class TriangulateWidget(QtGui.QWidget):
         curr_img = self.display.image
         if curr_img.prev is None and curr_img.next is None:
             return
+
+        del self.display.pointSets[curr_img.numInSeries - 1]
+        print(len(self.display.pointSets))
 
         if curr_img.prev is not None:
             curr_img.prev.next = curr_img.next
@@ -514,12 +518,13 @@ class TriangulateWidget(QtGui.QWidget):
 
         phs_sum = holo.calc_phase_sum(rec_holo1, rec_holo2)
 
-        rec_holo2.next = phs_sum
-        phs_sum.prev = rec_holo2
-        phs_sum.get_num_in_series_from_prev()
-        print(phs_sum.numInSeries)
+        if rec_holo2.next is not None:
+            tmp_img_list = imsup.ImageList([rec_holo2, phs_sum, rec_holo2.next])
+        else:
+            tmp_img_list = imsup.ImageList([rec_holo2, phs_sum])
+        tmp_img_list.UpdateLinks()
 
-        self.display.pointSets.append([])
+        self.display.pointSets.insert(phs_sum.numInSeries-1, [])
         self.goToNextImage()
 
     def calc_phs_diff(self):
@@ -528,11 +533,13 @@ class TriangulateWidget(QtGui.QWidget):
 
         phs_diff = holo.calc_phase_diff(rec_holo1, rec_holo2)
 
-        rec_holo2.next = phs_diff
-        phs_diff.prev = rec_holo2
-        phs_diff.get_num_in_series_from_prev()
+        if rec_holo2.next is not None:
+            tmp_img_list = imsup.ImageList([rec_holo2, phs_diff, rec_holo2.next])
+        else:
+            tmp_img_list = imsup.ImageList([rec_holo2, phs_diff])
+        tmp_img_list.UpdateLinks()
 
-        self.display.pointSets.append([])
+        self.display.pointSets.insert(phs_diff.numInSeries - 1, [])
         self.goToNextImage()
 
 # --------------------------------------------------------
