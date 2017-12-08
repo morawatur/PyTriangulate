@@ -169,6 +169,10 @@ class ImageWithBuffer(Image):
         else:
             self.buffer = cuda.to_device(np.zeros(self.amPh.am.shape, dtype=np.float32))
 
+    def __del__(self):
+        super(ImageWithBuffer, self).__del__()
+        del self.buffer
+
     def LoadAmpData(self, ampData):
         self.amPh.am = np.copy(ampData)
         self.buffer = np.copy(ampData)
@@ -612,19 +616,21 @@ def ClearImageData(img):
 def CopyImage(img):
     mt = img.memType
     dt = img.cmpRepr
-    img.MoveToGPU()
+    # img.MoveToGPU()
+    img.MoveToCPU()
     img.AmPh2ReIm()
     imgCopy = ImageWithBuffer(img.height, img.width, img.cmpRepr, img.memType, img.defocus, img.numInSeries)
-    imgCopy.reIm.copy_to_device(img.reIm)
+    # imgCopy.reIm.copy_to_device(img.reIm)
+    imgCopy.reIm = np.copy(img.reIm)
     # imgCopy.ReIm2AmPh()         # !!!
     # imgCopy.UpdateBuffer()      # !!!
 
     if img.prev is not None:
         imgCopy.prev = img.prev
-        img.prev.next = imgCopy
+        # img.prev.next = imgCopy
     if img.next is not None:
         imgCopy.next = img.next
-        img.next.prev = imgCopy
+        # img.next.prev = imgCopy
 
     img.ChangeComplexRepr(dt)
     img.ChangeMemoryType(mt)
@@ -1021,18 +1027,14 @@ def restore_img_mt_dt(img, mt, dt):
 
 def flip_image_h(img):
     mt, dt = move_to_ri_cpu(img)
-    img_flip = CopyImage(img)
-    img_flip.reIm = np.copy(np.fliplr(img.reIm))
-    img_flip.ReIm2AmPh()
+    re_im_flip = np.copy(np.fliplr(img.reIm))
+    img.reIm = np.copy(re_im_flip)
     restore_img_mt_dt(img, mt, dt)
-    return img_flip
 
 #-------------------------------------------------------------------
 
 def flip_image_v(img):
     mt, dt = move_to_ri_cpu(img)
-    img_flip = CopyImage(img)
-    img_flip.reIm = np.copy(np.flipud(img.reIm))
-    img_flip.ReIm2AmPh()
+    re_im_flip = np.copy(np.flipud(img.reIm))
+    img.reIm = np.copy(re_im_flip)
     restore_img_mt_dt(img, mt, dt)
-    return img_flip

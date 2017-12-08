@@ -62,10 +62,11 @@ class LabelExt(QtGui.QLabel):
         self.pointSets[self.image.numInSeries - 1].append(currPos)
         self.repaint()
 
-        lab = QtGui.QLabel('{0}'.format(len(self.pointSets[self.image.numInSeries - 1])), self)
-        lab.setStyleSheet('font-size:14pt; background-color:white; border:1px solid rgb(0, 0, 0);')
-        lab.move(pos.x()+4, pos.y()+4)
-        lab.show()
+        if self.parent().show_labels_checkbox.isChecked():
+            lab = QtGui.QLabel('{0}'.format(len(self.pointSets[self.image.numInSeries - 1])), self)
+            lab.setStyleSheet('font-size:14pt; background-color:white; border:1px solid rgb(0, 0, 0);')
+            lab.move(pos.x()+4, pos.y()+4)
+            lab.show()
 
     def setImage(self, dispAmp=True):
         self.image.MoveToCPU()
@@ -81,7 +82,7 @@ class LabelExt(QtGui.QLabel):
         self.setPixmap(pixmap)
         self.repaint()
 
-    def changeImage(self, toNext=True, dispAmp=True):
+    def changeImage(self, toNext=True, dispAmp=True, dispLabs=True):
         newImage = self.image.next if toNext else self.image.prev
         if newImage is not None:
             newImage.ReIm2AmPh()
@@ -94,12 +95,8 @@ class LabelExt(QtGui.QLabel):
         for child in labsToDel:
             child.deleteLater()
 
-        imgIdx = self.image.numInSeries - 1
-        for pt, idx in zip(self.pointSets[imgIdx], range(1, len(self.pointSets[imgIdx]) + 1)):
-            lab = QtGui.QLabel('{0}'.format(idx), self)
-            lab.setStyleSheet('font-size:14pt; background-color:white; border:1px solid rgb(0, 0, 0);')
-            lab.move(pt[0]+4, pt[1]+4)
-            lab.show()
+        if dispLabs:
+            self.show_labels()
 
     def hide_labels(self):
         labsToDel = self.children()
@@ -133,14 +130,16 @@ class TriangulateWidget(QtGui.QWidget):
 
         flipButton = QtGui.QPushButton('Flip', self)
         cropButton = QtGui.QPushButton('Crop', self)
+
         exportButton = QtGui.QPushButton('Export', self)
-        exportButton.setFixedWidth(self.width() // 3)
+        deleteButton = QtGui.QPushButton('Delete', self)
         clearButton = QtGui.QPushButton('Clear', self)
-        clearButton.setFixedWidth(self.width() // 4)
 
         flipButton.clicked.connect(self.flip_image_h)
         cropButton.clicked.connect(self.cropFragment)
+
         exportButton.clicked.connect(self.exportImage)
+        deleteButton.clicked.connect(self.deleteImage)
         clearButton.clicked.connect(self.clearImage)
 
         alignButton = QtGui.QPushButton('Align', self)
@@ -184,12 +183,16 @@ class TriangulateWidget(QtGui.QWidget):
         hbox_modify.addWidget(flipButton)
         hbox_modify.addWidget(cropButton)
 
+        hbox_imgop = QtGui.QHBoxLayout()
+        hbox_imgop.addWidget(exportButton)
+        hbox_imgop.addWidget(deleteButton)
+
         vbox_nav = QtGui.QVBoxLayout()
         vbox_nav.addLayout(hbox_nav)
         vbox_nav.addStretch(1)
         vbox_nav.addLayout(hbox_modify)
         vbox_nav.addStretch(1)
-        vbox_nav.addWidget(exportButton)
+        vbox_nav.addLayout(hbox_imgop)
 
         vbox_check = QtGui.QVBoxLayout()
         vbox_check.addWidget(self.show_lines_checkbox)
@@ -247,14 +250,16 @@ class TriangulateWidget(QtGui.QWidget):
 
     def goToPrevImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
-        self.display.changeImage(toNext=False, dispAmp=is_amp_checked)
+        is_show_labels_checked = self.show_labels_checkbox.isChecked()
+        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, dispLabs=is_show_labels_checked)
 
     def goToNextImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
-        self.display.changeImage(toNext=True, dispAmp=is_amp_checked)
+        is_show_labels_checked = self.show_labels_checkbox.isChecked()
+        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, dispLabs=is_show_labels_checked)
 
     def flip_image_h(self):
-        self.display.image = imsup.flip_image_h(self.display.image)
+        imsup.flip_image_h(self.display.image)
         self.display.setImage()
 
     def cropFragment(self):
@@ -286,6 +291,31 @@ class TriangulateWidget(QtGui.QWidget):
         fName = 'img{0}.png'.format(self.display.image.numInSeries)
         imsup.SaveAmpImage(self.display.image, fName)
         print('Saved image as "{0}"'.format(fName))
+
+    def deleteImage(self):
+        # if len(self.display.pointSets) < 2:
+        #     return
+
+        curr_img = self.display.image
+        if curr_img.prev is None and curr_img.next is None:
+            return
+
+        if curr_img.prev is not None:
+            curr_img.prev.next = curr_img.next
+
+        if curr_img.next is not None:
+            curr_img.next.prev = curr_img.prev
+            tmp = curr_img.next
+            while tmp is not None:
+                tmp.numInSeries = tmp.prev.numInSeries + 1 if tmp.prev is not None else 1
+                tmp = tmp.next
+
+        if curr_img.prev is not None:
+            self.goToPrevImage()
+        else:
+            self.goToNextImage()
+
+        del curr_img
 
     def toggle_lines(self):
         self.display.show_lines = not self.display.show_lines
@@ -396,6 +426,7 @@ class TriangulateWidget(QtGui.QWidget):
         img2Rot.MoveToCPU()
         img1RcPad.UpdateBuffer()
         img2Rot.UpdateBuffer()
+
         tmpImgList = imsup.ImageList([ self.display.image, img1RcPad, img2Rot ])
         tmpImgList.UpdateLinks()
 
@@ -486,6 +517,7 @@ class TriangulateWidget(QtGui.QWidget):
         rec_holo2.next = phs_sum
         phs_sum.prev = rec_holo2
         phs_sum.get_num_in_series_from_prev()
+        print(phs_sum.numInSeries)
 
         self.display.pointSets.append([])
         self.goToNextImage()

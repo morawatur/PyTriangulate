@@ -111,6 +111,7 @@ def calc_phase_sum(img1, img2):
     img2.MoveToCPU()
 
     phs_sum = imsup.ImageWithBuffer(img1.height, img1.width)
+    phs_sum.amPh.am = img1.amPh.am * img2.amPh.am
     phs_sum.amPh.ph = img1.amPh.ph + img2.amPh.ph
     return phs_sum
 
@@ -123,6 +124,7 @@ def calc_phase_diff(img1, img2):
     img2.MoveToCPU()
 
     phs_diff = imsup.ImageWithBuffer(img1.height, img1.width)
+    phs_diff.amPh.am = img1.amPh.am * img2.amPh.am
     phs_diff.amPh.ph = img1.amPh.ph - img2.amPh.ph
     return phs_diff
 

@@ -6,7 +6,9 @@ dev = cuda.get_current_device()
 print('CUDA device in use: ' + dev.name.decode())
 
 # Potrzebne jeszcze:
-# - przycisk Delete do usuwania obrazow z kolejki
+# - jezeli po sumie wykona sie roznice, to suma znika, a powinna sie przesunac o jeden obraz dalej
 # - panel z parametrami rekonstrukcji holo (wielkosc maski itp.)
+# - dodac mozliwosc zaznaczenia wiecej niz trzech punktow do triangulacji
+# - przycisk Delete powinien tez usuwac zapisane zestawy punktow
 
 gui.RunTriangulationWindow()
