@@ -84,12 +84,14 @@ class LabelExt(QtGui.QLabel):
 
     def changeImage(self, toNext=True, dispAmp=True, dispLabs=True):
         newImage = self.image.next if toNext else self.image.prev
-        if newImage is not None:
-            newImage.ReIm2AmPh()
-            self.image = newImage
-            if len(self.pointSets) < self.image.numInSeries:
-                self.pointSets.append([])
-            self.setImage(dispAmp)
+        if newImage is None:
+            return
+
+        newImage.ReIm2AmPh()
+        self.image = newImage
+        if len(self.pointSets) < self.image.numInSeries:
+            self.pointSets.append([])
+        self.setImage(dispAmp)
 
         labsToDel = self.children()
         for child in labsToDel:
@@ -273,19 +275,24 @@ class TriangulateWidget(QtGui.QWidget):
         imgCurrCrop = imsup.CreateImageWithBufferFromImage(imgCurrCrop)
         imgCurrCrop.MoveToCPU()
 
+        curr_num = self.display.image.numInSeries
+        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+
         if imgCurr.prev is not None:
             imgPrev = imgCurr.prev
             imgPrevCrop = imsup.CropImageROICoords(imgPrev, realCropCoords)
             imgPrevCrop = imsup.CreateImageWithBufferFromImage(imgPrevCrop)
             imgPrevCrop.MoveToCPU()
-            cropImgList = imsup.ImageList([self.display.image, imgPrevCrop, imgCurrCrop])
-            self.display.pointSets.append([])
+            tmp_img_list.insert(1, imgPrevCrop)
+            tmp_img_list.insert(2, imgCurrCrop)
+            self.display.pointSets.insert(curr_num, [])
+            self.display.pointSets.insert(curr_num+1, [])
         else:
-            cropImgList = imsup.ImageList([self.display.image, imgCurrCrop])
+            tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+            tmp_img_list.insert(1, imgCurrCrop)
+            self.display.pointSets.insert(curr_num, [])
 
-        cropImgList.UpdateLinks()
-        self.display.pointSets.append([])
-        print(len(self.display.pointSets))
+        tmp_img_list.UpdateLinks()
         self.goToNextImage()
 
     def exportImage(self):
@@ -294,32 +301,50 @@ class TriangulateWidget(QtGui.QWidget):
         print('Saved image as "{0}"'.format(fName))
 
     def deleteImage(self):
-        # if len(self.display.pointSets) < 2:
-        #     return
-
         curr_img = self.display.image
         if curr_img.prev is None and curr_img.next is None:
             return
 
-        del self.display.pointSets[curr_img.numInSeries - 1]
-        print(len(self.display.pointSets))
+        curr_idx = curr_img.numInSeries - 1
+        first_img = imsup.GetFirstImage(curr_img)
+        tmp_img_list = imsup.CreateImageListFromFirstImage(first_img)
 
         if curr_img.prev is not None:
-            curr_img.prev.next = curr_img.next
-
-        if curr_img.next is not None:
-            curr_img.next.prev = curr_img.prev
-            tmp = curr_img.next
-            while tmp is not None:
-                tmp.numInSeries = tmp.prev.numInSeries + 1 if tmp.prev is not None else 1
-                tmp = tmp.next
-
-        if curr_img.prev is not None:
+            curr_img.prev.next = None
             self.goToPrevImage()
         else:
+            curr_img.next.prev = None
             self.goToNextImage()
+            if curr_idx == 0:
+                self.display.image.numInSeries = 1
 
+        del tmp_img_list[curr_idx]
+        del self.display.pointSets[curr_idx]
+        tmp_img_list.UpdateLinks()
         del curr_img
+
+        # curr_img = self.display.image
+        # if curr_img.prev is None and curr_img.next is None:
+        #     return
+        #
+        # del self.display.pointSets[curr_img.numInSeries - 1]
+        #
+        # if curr_img.prev is not None:
+        #     curr_img.prev.next = curr_img.next
+        #
+        # if curr_img.next is not None:
+        #     curr_img.next.prev = curr_img.prev
+        #     tmp = curr_img.next
+        #     while tmp is not None:
+        #         tmp.numInSeries = tmp.prev.numInSeries + 1 if tmp.prev is not None else 1
+        #         tmp = tmp.next
+        #
+        # if curr_img.prev is not None:
+        #     self.goToPrevImage()
+        # else:
+        #     self.goToNextImage()
+        #
+        # del curr_img
 
     def toggle_lines(self):
         self.display.show_lines = not self.display.show_lines
@@ -431,11 +456,13 @@ class TriangulateWidget(QtGui.QWidget):
         img1RcPad.UpdateBuffer()
         img2Rot.UpdateBuffer()
 
-        tmpImgList = imsup.ImageList([ self.display.image, img1RcPad, img2Rot ])
-        tmpImgList.UpdateLinks()
-
-        self.display.pointSets.append([])
-        self.display.pointSets.append([])
+        curr_num = self.display.image.numInSeries
+        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+        tmp_img_list.insert(1, img1RcPad)
+        tmp_img_list.insert(2, img2Rot)
+        tmp_img_list.UpdateLinks()
+        self.display.pointSets.insert(curr_num, [])
+        self.display.pointSets.insert(curr_num+1, [])
         self.goToNextImage()
 
         print('Triangulation complete!')
@@ -487,26 +514,34 @@ class TriangulateWidget(QtGui.QWidget):
         imgWarped = imsup.ImageWithBuffer(currImg.height, currImg.width, num=currImg.numInSeries+1)
         imgWarped.amPh.am = np.copy(warpedScaledBack)
         imgWarped.UpdateBuffer()
-        self.display.image.next = imgWarped
-        imgWarped.prev = self.display.image
-        self.display.pointSets.append([])
+
+        curr_num = self.display.image.numInSeries
+        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+        tmp_img_list.insert(1, imgWarped)
+        tmp_img_list.UpdateLinks()
+        self.display.pointSets.insert(curr_num, [])
         self.goToNextImage()
 
     def rec_holo_no_ref(self):
-        holo1 = self.display.image
-        holo2 = self.display.image.prev
+        holo1 = self.display.image.prev
+        holo2 = self.display.image
 
-        rec_holo1 = holo.rec_holo_no_ref(holo1)
-        if holo2 is not None:
-            rec_holo2 = holo.rec_holo_no_ref(holo2)
-            holo_img_list = imsup.ImageList([holo1, rec_holo2, rec_holo1])
+        rec_holo2 = holo.rec_holo_no_ref(holo2)
+
+        curr_num = self.display.image.numInSeries
+        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+
+        if holo1 is not None:
+            rec_holo1 = holo.rec_holo_no_ref(holo1)
+            tmp_img_list.insert(1, rec_holo1)
+            tmp_img_list.insert(2, rec_holo2)
+            self.display.pointSets.insert(curr_num, [])
+            self.display.pointSets.insert(curr_num+1, [])
         else:
-            holo_img_list = imsup.ImageList([holo1, rec_holo1])
+            tmp_img_list.insert(1, rec_holo2)
+            self.display.pointSets.insert(curr_num, [])
 
-        holo_img_list.UpdateLinks()
-
-        self.display.pointSets.append([])
-        self.display.pointSets.append([])
+        tmp_img_list.UpdateLinks()
         self.goToNextImage()
 
     def rec_holo_with_ref(self):
@@ -518,13 +553,12 @@ class TriangulateWidget(QtGui.QWidget):
 
         phs_sum = holo.calc_phase_sum(rec_holo1, rec_holo2)
 
-        if rec_holo2.next is not None:
-            tmp_img_list = imsup.ImageList([rec_holo2, phs_sum, rec_holo2.next])
-        else:
-            tmp_img_list = imsup.ImageList([rec_holo2, phs_sum])
+        curr_num = self.display.image.numInSeries
+        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+        tmp_img_list.insert(1, phs_sum)
         tmp_img_list.UpdateLinks()
 
-        self.display.pointSets.insert(phs_sum.numInSeries-1, [])
+        self.display.pointSets.insert(curr_num, [])
         self.goToNextImage()
 
     def calc_phs_diff(self):
@@ -533,13 +567,12 @@ class TriangulateWidget(QtGui.QWidget):
 
         phs_diff = holo.calc_phase_diff(rec_holo1, rec_holo2)
 
-        if rec_holo2.next is not None:
-            tmp_img_list = imsup.ImageList([rec_holo2, phs_diff, rec_holo2.next])
-        else:
-            tmp_img_list = imsup.ImageList([rec_holo2, phs_diff])
+        curr_num = self.display.image.numInSeries
+        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+        tmp_img_list.insert(1, phs_diff)
         tmp_img_list.UpdateLinks()
 
-        self.display.pointSets.insert(phs_diff.numInSeries - 1, [])
+        self.display.pointSets.insert(curr_num, [])
         self.goToNextImage()
 
 # --------------------------------------------------------
