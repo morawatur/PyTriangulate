@@ -68,21 +68,25 @@ class LabelExt(QtGui.QLabel):
             lab.move(pos.x()+4, pos.y()+4)
             lab.show()
 
-    def setImage(self, dispAmp=True):
+    def setImage(self, dispAmp=True, logScale=False):
         self.image.MoveToCPU()
         if dispAmp:
             self.image.buffer = np.copy(self.image.amPh.am)
+            if logScale:
+                self.image.buffer = np.log(self.image.buffer)
         else:
             self.image.buffer = np.copy(self.image.amPh.ph)
-        paddedImage = imsup.PadImageBufferToNx512(self.image, np.max(self.image.buffer))
-        qImg = QtGui.QImage(imsup.ScaleImage(paddedImage.buffer, 0.0, 255.0).astype(np.uint8),
-                            paddedImage.width, paddedImage.height, QtGui.QImage.Format_Indexed8)
+        # paddedImage = imsup.PadImageBufferToNx512(self.image, np.max(self.image.buffer))
+        # qImg = QtGui.QImage(imsup.ScaleImage(paddedImage.buffer, 0.0, 255.0).astype(np.uint8),
+        #                     paddedImage.width, paddedImage.height, QtGui.QImage.Format_Indexed8)
+        qImg = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
+                            self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
         pixmap = QtGui.QPixmap(qImg)
         pixmap = pixmap.scaledToWidth(const.ccWidgetDim)
         self.setPixmap(pixmap)
         self.repaint()
 
-    def changeImage(self, toNext=True, dispAmp=True, dispLabs=True):
+    def changeImage(self, toNext=True, dispAmp=True, logScale=False, dispLabs=True):
         newImage = self.image.next if toNext else self.image.prev
         if newImage is None:
             return
@@ -91,7 +95,7 @@ class LabelExt(QtGui.QLabel):
         self.image = newImage
         if len(self.pointSets) < self.image.numInSeries:
             self.pointSets.append([])
-        self.setImage(dispAmp)
+        self.setImage(dispAmp, logScale)
 
         labsToDel = self.children()
         for child in labsToDel:
@@ -131,14 +135,15 @@ class TriangulateWidget(QtGui.QWidget):
         nextButton.clicked.connect(self.goToNextImage)
 
         flipButton = QtGui.QPushButton('Flip', self)
-        cropButton = QtGui.QPushButton('Crop', self)
+        zoomButton = QtGui.QPushButton('Zoom', self)
 
         exportButton = QtGui.QPushButton('Export', self)
         deleteButton = QtGui.QPushButton('Delete', self)
         clearButton = QtGui.QPushButton('Clear', self)
 
         flipButton.clicked.connect(self.flip_image_h)
-        cropButton.clicked.connect(self.cropFragment)
+        # cropButton.clicked.connect(self.cropFragment)
+        zoomButton.clicked.connect(self.zoom_two_fragments)
 
         exportButton.clicked.connect(self.exportImage)
         deleteButton.clicked.connect(self.deleteImage)
@@ -150,11 +155,15 @@ class TriangulateWidget(QtGui.QWidget):
         alignButton.clicked.connect(self.triangulate)
         warpButton.clicked.connect(partial(self.warpImage, False))
 
-        holo_no_ref_button = QtGui.QPushButton('Holo no ref', self)
-        holo_with_ref_button = QtGui.QPushButton('Holo with ref', self)
+        holo_no_ref_1_button = QtGui.QPushButton('Holo 1', self)
+        holo_no_ref_2_button = QtGui.QPushButton('Holo 2', self)
+        holo_no_ref_3_button = QtGui.QPushButton('Holo 3', self)
+        # holo_with_ref_button = QtGui.QPushButton('Holo with ref', self)
 
-        holo_no_ref_button.clicked.connect(self.rec_holo_no_ref)
-        holo_with_ref_button.clicked.connect(self.rec_holo_with_ref)
+        holo_no_ref_1_button.clicked.connect(self.rec_holo_no_ref_1)
+        holo_no_ref_2_button.clicked.connect(self.rec_holo_no_ref_2)
+        holo_no_ref_3_button.clicked.connect(self.rec_holo_no_ref_3)
+        # holo_with_ref_button.clicked.connect(self.rec_holo_with_ref)
 
         sum_button = QtGui.QPushButton('Sum', self)
         diff_button = QtGui.QPushButton('Difference', self)
@@ -170,6 +179,10 @@ class TriangulateWidget(QtGui.QWidget):
         self.show_labels_checkbox.setChecked(True)
         self.show_labels_checkbox.toggled.connect(self.toggle_labels)
 
+        self.log_scale_checkbox = QtGui.QCheckBox('Log scale', self)
+        self.log_scale_checkbox.setChecked(False)
+        self.log_scale_checkbox.toggled.connect(self.update_display)
+
         self.amp_radio_button = QtGui.QRadioButton('Amplitude', self)
         self.phs_radio_button = QtGui.QRadioButton('Phase', self)
         self.amp_radio_button.setChecked(True)
@@ -183,7 +196,7 @@ class TriangulateWidget(QtGui.QWidget):
 
         hbox_modify = QtGui.QHBoxLayout()
         hbox_modify.addWidget(flipButton)
-        hbox_modify.addWidget(cropButton)
+        hbox_modify.addWidget(zoomButton)
 
         hbox_imgop = QtGui.QHBoxLayout()
         hbox_imgop.addWidget(exportButton)
@@ -200,6 +213,8 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_check.addWidget(self.show_lines_checkbox)
         vbox_check.addStretch(1)
         vbox_check.addWidget(self.show_labels_checkbox)
+        vbox_check.addStretch(1)
+        vbox_check.addWidget(self.log_scale_checkbox)
 
         vbox_radio = QtGui.QVBoxLayout()
         vbox_radio.addWidget(self.amp_radio_button)
@@ -220,8 +235,10 @@ class TriangulateWidget(QtGui.QWidget):
         hbox_align.addWidget(warpButton)
 
         hbox_holo = QtGui.QHBoxLayout()
-        hbox_holo.addWidget(holo_no_ref_button)
-        hbox_holo.addWidget(holo_with_ref_button)
+        hbox_holo.addWidget(holo_no_ref_1_button)
+        hbox_holo.addWidget(holo_no_ref_2_button)
+        hbox_holo.addWidget(holo_no_ref_3_button)
+        # hbox_holo.addWidget(holo_with_ref_button)
 
         hbox_calc = QtGui.QHBoxLayout()
         hbox_calc.addWidget(sum_button)
@@ -252,48 +269,50 @@ class TriangulateWidget(QtGui.QWidget):
 
     def goToPrevImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
+        is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
-        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, dispLabs=is_show_labels_checked)
+        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked)
 
     def goToNextImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
+        is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
-        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, dispLabs=is_show_labels_checked)
+        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked)
 
     def flip_image_h(self):
         imsup.flip_image_h(self.display.image)
         self.display.setImage()
 
-    def cropFragment(self):
-        [pt1, pt2] = self.display.pointSets[self.display.image.numInSeries - 1][:2]
-        dispCropCoords = pt1 + pt2
-        realCropCoords = imsup.MakeSquareCoords(
-            CalcRealTLCoordsForPaddedImage(self.display.image.width, dispCropCoords))
-
-        imgCurr = self.display.image
-        imgCurrCrop = imsup.CropImageROICoords(imgCurr, realCropCoords)
-        imgCurrCrop = imsup.CreateImageWithBufferFromImage(imgCurrCrop)
-        imgCurrCrop.MoveToCPU()
-
-        curr_num = self.display.image.numInSeries
-        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-
-        if imgCurr.prev is not None:
-            imgPrev = imgCurr.prev
-            imgPrevCrop = imsup.CropImageROICoords(imgPrev, realCropCoords)
-            imgPrevCrop = imsup.CreateImageWithBufferFromImage(imgPrevCrop)
-            imgPrevCrop.MoveToCPU()
-            tmp_img_list.insert(1, imgPrevCrop)
-            tmp_img_list.insert(2, imgCurrCrop)
-            self.display.pointSets.insert(curr_num, [])
-            self.display.pointSets.insert(curr_num+1, [])
-        else:
-            tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-            tmp_img_list.insert(1, imgCurrCrop)
-            self.display.pointSets.insert(curr_num, [])
-
-        tmp_img_list.UpdateLinks()
-        self.goToNextImage()
+    # def cropFragment(self):
+    #     [pt1, pt2] = self.display.pointSets[self.display.image.numInSeries - 1][:2]
+    #     dispCropCoords = pt1 + pt2
+    #     realCropCoords = imsup.MakeSquareCoords(
+    #         CalcRealTLCoordsForPaddedImage(self.display.image.width, dispCropCoords))
+    #
+    #     imgCurr = self.display.image
+    #     imgCurrCrop = imsup.CropImageROICoords(imgCurr, realCropCoords)
+    #     imgCurrCrop = imsup.CreateImageWithBufferFromImage(imgCurrCrop)
+    #     imgCurrCrop.MoveToCPU()
+    #
+    #     curr_num = self.display.image.numInSeries
+    #     tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+    #
+    #     if imgCurr.prev is not None:
+    #         imgPrev = imgCurr.prev
+    #         imgPrevCrop = imsup.CropImageROICoords(imgPrev, realCropCoords)
+    #         imgPrevCrop = imsup.CreateImageWithBufferFromImage(imgPrevCrop)
+    #         imgPrevCrop.MoveToCPU()
+    #         tmp_img_list.insert(1, imgPrevCrop)
+    #         tmp_img_list.insert(2, imgCurrCrop)
+    #         self.display.pointSets.insert(curr_num, [])
+    #         self.display.pointSets.insert(curr_num+1, [])
+    #     else:
+    #         tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+    #         tmp_img_list.insert(1, imgCurrCrop)
+    #         self.display.pointSets.insert(curr_num, [])
+    #
+    #     tmp_img_list.UpdateLinks()
+    #     self.goToNextImage()
 
     def exportImage(self):
         fName = 'img{0}.png'.format(self.display.image.numInSeries)
@@ -359,7 +378,33 @@ class TriangulateWidget(QtGui.QWidget):
 
     def update_display(self):
         is_amp_checked = self.amp_radio_button.isChecked()
-        self.display.setImage(dispAmp=is_amp_checked)
+        is_log_scale_checked = self.log_scale_checkbox.isChecked()
+        self.display.setImage(dispAmp=is_amp_checked, logScale=is_log_scale_checked)
+
+    def zoom_two_fragments(self):
+        curr_idx = self.display.image.numInSeries - 1
+        if len(self.display.pointSets[curr_idx]) < 2:
+            return
+
+        curr_img = self.display.image
+        [pt1, pt2] = self.display.pointSets[curr_idx][:2]
+        disp_crop_coords = pt1 + pt2
+        real_crop_coords = imsup.MakeSquareCoords(CalcRealTLCoords(curr_img.width, disp_crop_coords))
+
+        if curr_img.prev is not None:
+            self.zoom_fragment(curr_img.prev, real_crop_coords)
+        self.zoom_fragment(curr_img, real_crop_coords)
+
+    def zoom_fragment(self, img, coords):
+        crop_img = imsup.CropImageROICoords(img, coords)
+        crop_img = imsup.CreateImageWithBufferFromImage(crop_img)
+        crop_img.MoveToCPU()
+
+        orig_width = img.width
+        crop_width = np.abs(coords[2] - coords[0])
+        zoom_factor = orig_width / crop_width
+        zoom_img = tr.RescaleImageSki(crop_img, zoom_factor)
+        self.insert_img_after_curr(zoom_img)
 
     def clearImage(self):
         labToDel = self.display.children()
@@ -409,8 +454,8 @@ class TriangulateWidget(QtGui.QWidget):
         # img2Rc = imsup.CropImageROICoords(img2Rc, cropCoords)
         img1Rc = imsup.CreateImageWithBufferFromImage(img1Rc)
         img2Rc = imsup.CreateImageWithBufferFromImage(img2Rc)
-        imsup.SaveAmpImage(img1Rc, 'a.png')
-        imsup.SaveAmpImage(img2Rc, 'b.png')
+        # imsup.SaveAmpImage(img1Rc, 'a.png')
+        # imsup.SaveAmpImage(img2Rc, 'b.png')
 
         rotAngles = []
         for idx, p1, p2 in zip(range(3), triangles[0], triangles[1]):
@@ -522,27 +567,66 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.pointSets.insert(curr_num, [])
         self.goToNextImage()
 
-    def rec_holo_no_ref(self):
-        holo1 = self.display.image.prev
-        holo2 = self.display.image
-
-        rec_holo2 = holo.rec_holo_no_ref(holo2)
-
+    def insert_img_after_curr(self, img):
         curr_num = self.display.image.numInSeries
         tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-
-        if holo1 is not None:
-            rec_holo1 = holo.rec_holo_no_ref(holo1)
-            tmp_img_list.insert(1, rec_holo1)
-            tmp_img_list.insert(2, rec_holo2)
-            self.display.pointSets.insert(curr_num, [])
-            self.display.pointSets.insert(curr_num+1, [])
-        else:
-            tmp_img_list.insert(1, rec_holo2)
-            self.display.pointSets.insert(curr_num, [])
-
+        tmp_img_list.insert(1, img)
+        self.display.pointSets.insert(curr_num, [])
         tmp_img_list.UpdateLinks()
         self.goToNextImage()
+
+    def rec_holo_no_ref_1(self):
+        holo_img = self.display.image
+        holo_fft = holo.rec_holo_no_ref_1(holo_img)
+        self.insert_img_after_curr(holo_fft)
+
+    def rec_holo_no_ref_2(self):
+        holo_fft = self.display.image
+        [pt1, pt2] = self.display.pointSets[holo_fft.numInSeries-1][:2]
+        dpts = pt1 + pt2
+        rpts = CalcRealTLCoords(holo_fft.width, dpts)
+        rpt1 = rpts[:2]     # konwencja x, y
+        rpt2 = rpts[2:]
+
+        sband = np.copy(holo_fft.amPh.am[rpt1[1]:rpt2[1], rpt1[0]:rpt2[0]])     # konwencja y, x
+        sband_xy = holo.find_img_max(sband)     # konwencja y, x
+        sband_xy.reverse()
+
+        sband_xy = [ px + sx for px, sx in zip(rpt1, sband_xy) ]    # konwencja x, y
+
+        mid = holo_fft.width // 2
+        shift = [ mid - sband_xy[1], mid - sband_xy[0] ]    # konwencja x, y
+
+        sband_img_ap = holo.rec_holo_no_ref_2(holo_fft, shift, ap_sz=50)
+        self.log_scale_checkbox.setChecked(False)
+        self.insert_img_after_curr(sband_img_ap)
+
+    def rec_holo_no_ref_3(self):
+        sband_img = self.display.image
+        rec_holo = holo.rec_holo_no_ref_3(sband_img)
+        self.insert_img_after_curr(rec_holo)
+
+    # def rec_holo_no_ref(self):
+    #     holo1 = self.display.image.prev
+    #     holo2 = self.display.image
+    #
+    #     rec_holo2 = holo.rec_holo_no_ref(holo2)
+    #
+    #     curr_num = self.display.image.numInSeries
+    #     tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
+    #
+    #     if holo1 is not None:
+    #         rec_holo1 = holo.rec_holo_no_ref(holo1)
+    #         tmp_img_list.insert(1, rec_holo1)
+    #         tmp_img_list.insert(2, rec_holo2)
+    #         self.display.pointSets.insert(curr_num, [])
+    #         self.display.pointSets.insert(curr_num+1, [])
+    #     else:
+    #         tmp_img_list.insert(1, rec_holo2)
+    #         self.display.pointSets.insert(curr_num, [])
+    #
+    #     tmp_img_list.UpdateLinks()
+    #     self.goToNextImage()
 
     def rec_holo_with_ref(self):
         pass
@@ -619,6 +703,20 @@ def CalcTopLeftCoords(imgWidth, midCoords):
 def CalcTopLeftCoordsForSetOfPoints(imgWidth, points):
     topLeftPoints = [ CalcTopLeftCoords(imgWidth, pt) for pt in points ]
     return topLeftPoints
+
+# --------------------------------------------------------
+
+def CalcRealTLCoords(imgWidth, dispCoords):
+    dispWidth = const.ccWidgetDim
+    factor = imgWidth / dispWidth
+    realCoords = [ int(dc * factor) for dc in dispCoords ]
+    return realCoords
+
+# --------------------------------------------------------
+
+def CalcRealTLCoordsForSetOfPoints(imgWidth, points):
+    realCoords = [ CalcRealTLCoords(imgWidth, pt) for pt in points ]
+    return realCoords
 
 # --------------------------------------------------------
 

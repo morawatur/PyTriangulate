@@ -26,7 +26,7 @@ def mask_fft_center(fft, r, out=True):
 
 def find_img_max(img):
     max_xy = np.array(np.unravel_index(np.argmax(img), img.shape))
-    return tuple(max_xy)
+    return list(max_xy)
 
 #-------------------------------------------------------------------
 
@@ -62,6 +62,36 @@ def mult_by_hann_window(img, N=100):
     new_img.amPh.am[hmin:hmax, hmin:hmax] *= hann_2d
     new_img.amPh.ph[hmin:hmax, hmin:hmax] *= hann_2d
     return new_img
+
+#-------------------------------------------------------------------
+
+def rec_holo_no_ref_1(holo_img):
+    holo_fft = cc.FFT(holo_img)
+    holo_fft = cc.FFT2Diff(holo_fft)
+    holo_fft.ReIm2AmPh()
+    holo_fft.MoveToCPU()
+    return holo_fft
+
+#-------------------------------------------------------------------
+
+def rec_holo_no_ref_2(holo_fft, shift, ap_sz=32, N_hann=100):
+    holo_fft.MoveToGPU()
+    sband_mid_img = cc.ShiftImage(holo_fft, shift)
+    holo_fft.MoveToCPU()
+
+    imsup.SaveAmpImage(sband_mid_img, 'sband_am.png')
+    imsup.SavePhaseImage(sband_mid_img, 'sband_ph.png')
+    sband_img_ap = mult_by_hann_window(sband_mid_img, N=N_hann)
+    sband_img_ap = insert_aperture(sband_img_ap, ap_sz)
+    return sband_img_ap
+
+#-------------------------------------------------------------------
+
+def rec_holo_no_ref_3(sband_img):
+    sband_img = cc.Diff2FFT(sband_img)
+    rec_holo = cc.IFFT(sband_img)
+    rec_holo = imsup.CreateImageWithBufferFromImage(rec_holo)
+    return rec_holo
 
 #-------------------------------------------------------------------
 
