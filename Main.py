@@ -7,6 +7,7 @@ print('CUDA device in use: ' + dev.name.decode())
 
 # Potrzebne jeszcze:
 #
+# - poprawić funkcję PadImage tak, aby brała pod uwagę fazę
 # - panel z parametrami rekonstrukcji holo (wielkosc maski itp.)
 # - dodac mozliwosc zaznaczenia wiecej niz trzech punktow do triangulacji
 

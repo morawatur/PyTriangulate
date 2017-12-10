@@ -10,20 +10,42 @@ def RotateImageSki(img, angle, mode='constant'):
     img.ReIm2AmPh()
     img.MoveToCPU()
 
-    limits = [np.min(img.amPh.am), np.max(img.amPh.am)]
-    ampScaled = imsup.ScaleImage(img.amPh.am, -1.0, 1.0)
-    ampRot = tr.rotate(ampScaled, angle, mode=mode).astype(np.float32)
-    ampRotRescaled = imsup.ScaleImage(ampRot, limits[0], limits[1])
+    amp_limits = [np.min(img.amPh.am), np.max(img.amPh.am)]
+    phs_limits = [np.min(img.amPh.ph), np.max(img.amPh.ph)]
 
-    imgRot = imsup.ImageWithBuffer(ampRot.shape[0], ampRot.shape[1], defocus=img.defocus, num=img.numInSeries)
-    imgRot.LoadAmpData(ampRotRescaled)
+    if amp_limits[0] < -1.0 or amp_limits[1] > 1.0:
+        amp_scaled = imsup.ScaleImage(img.amPh.am, -1.0, 1.0)
+    else:
+        amp_scaled = np.copy(img.amPh.am)
+
+    if phs_limits[0] < -1.0 or phs_limits[1] > 1.0:
+        phs_scaled = imsup.ScaleImage(img.amPh.ph, -1.0, 1.0)
+    else:
+        phs_scaled = np.copy(img.amPh.ph)
+
+    amp_rot = tr.rotate(amp_scaled, angle, mode=mode).astype(np.float32)
+    phs_rot = tr.rotate(phs_scaled, angle, mode=mode).astype(np.float32)
+
+    if amp_limits[0] < -1.0 or amp_limits[1] > 1.0:
+        amp_rot_rescaled = imsup.ScaleImage(amp_rot, amp_limits[0], amp_limits[1])
+    else:
+        amp_rot_rescaled = np.copy(amp_rot)
+
+    if phs_limits[0] < -1.0 or phs_limits[1] > 1.0:
+        phs_rot_rescaled = imsup.ScaleImage(phs_rot, phs_limits[0], phs_limits[1])
+    else:
+        phs_rot_rescaled = np.copy(phs_rot)
+
+    img_rot = imsup.ImageWithBuffer(amp_rot.shape[0], amp_rot.shape[1], defocus=img.defocus, num=img.numInSeries)
+    img_rot.LoadAmpData(amp_rot_rescaled)
+    img_rot.LoadPhsData(phs_rot_rescaled)
 
     img.ChangeMemoryType(mt)
     img.ChangeComplexRepr(dt)
-    imgRot.ChangeMemoryType(mt)
-    imgRot.ChangeComplexRepr(dt)
+    img_rot.ChangeMemoryType(mt)
+    img_rot.ChangeComplexRepr(dt)
 
-    return imgRot
+    return img_rot
 
 #-------------------------------------------------------------------
 
@@ -36,12 +58,12 @@ def RescaleImageSki(img, factor):
     amp_limits = [np.min(img.amPh.am), np.max(img.amPh.am)]
     phs_limits = [np.min(img.amPh.ph), np.max(img.amPh.ph)]
 
-    if amp_limits[0] != amp_limits[1]:
+    if amp_limits[0] < -1.0 or amp_limits[1] > 1.0:
         amp_scaled = imsup.ScaleImage(img.amPh.am, -1.0, 1.0)
     else:
         amp_scaled = np.copy(img.amPh.am)
 
-    if phs_limits[0] != phs_limits[1]:
+    if phs_limits[0] < -1.0 or phs_limits[1] > 1.0:
         phs_scaled = imsup.ScaleImage(img.amPh.ph, -1.0, 1.0)
     else:
         phs_scaled = np.copy(img.amPh.ph)
@@ -49,15 +71,19 @@ def RescaleImageSki(img, factor):
     amp_mag = tr.rescale(amp_scaled, scale=factor).astype(np.float32)
     phs_mag = tr.rescale(phs_scaled, scale=factor).astype(np.float32)
 
-    if amp_limits[0] != amp_limits[1]:
-        amp_mag = imsup.ScaleImage(amp_mag, amp_limits[0], amp_limits[1])
+    if amp_limits[0] < -1.0 or amp_limits[1] > 1.0:
+        amp_mag_rescaled = imsup.ScaleImage(amp_mag, amp_limits[0], amp_limits[1])
+    else:
+        amp_mag_rescaled = np.copy(amp_mag)
 
-    if phs_limits[0] != phs_limits[1]:
-        phs_mag = imsup.ScaleImage(phs_mag, phs_limits[0], phs_limits[1])
+    if phs_limits[0] < -1.0 or phs_limits[1] > 1.0:
+        phs_mag_rescaled = imsup.ScaleImage(phs_mag, phs_limits[0], phs_limits[1])
+    else:
+        phs_mag_rescaled = np.copy(phs_mag)
 
     img_mag = imsup.ImageWithBuffer(amp_mag.shape[0], amp_mag.shape[1], defocus=img.defocus, num=img.numInSeries)
-    img_mag.LoadAmpData(amp_mag)
-    img_mag.LoadPhsData(phs_mag)
+    img_mag.LoadAmpData(amp_mag_rescaled)
+    img_mag.LoadPhsData(phs_mag_rescaled)
 
     img.ChangeMemoryType(mt)
     img.ChangeComplexRepr(dt)

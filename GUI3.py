@@ -438,8 +438,8 @@ class TriangulateWidget(QtGui.QWidget):
         print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
         # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
 
-        img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
-        img2Rot = tr.RotateImageSki2(img2Mag, rotAngleAvg, cut=False)
+        # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
+        img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
         # img2Rot = imsup.RotateImage(img2Rc, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
@@ -450,8 +450,7 @@ class TriangulateWidget(QtGui.QWidget):
         img2Rot.UpdateBuffer()
         tmpImgList = imsup.ImageList([ self.display.image, img1RcPad, img2Rot ])
         tmpImgList.UpdateLinks()
-        for img in tmpImgList:
-            print(img.numInSeries)
+
         self.display.pointSets.append([])
         self.display.pointSets.append([])
         self.goToNextImage()
@@ -712,7 +711,7 @@ def CalcRotAngle(p1, p2):
     rotAngle = np.abs(imsup.Degrees(phi2 - phi1))
     if rotAngle > 180:
         rotAngle = 360 - rotAngle
-    return -rotAngle
+    return rotAngle
 
 # --------------------------------------------------------
 

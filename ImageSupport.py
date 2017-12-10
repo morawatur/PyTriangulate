@@ -617,8 +617,9 @@ def CopyImage(img):
     mt = img.memType
     dt = img.cmpRepr
     # img.MoveToGPU()
-    img.MoveToCPU()
     img.AmPh2ReIm()
+    img.MoveToCPU()
+    # img.AmPh2ReIm()
     imgCopy = ImageWithBuffer(img.height, img.width, img.cmpRepr, img.memType, img.defocus, img.numInSeries)
     # imgCopy.reIm.copy_to_device(img.reIm)
     imgCopy.reIm = np.copy(img.reIm)
@@ -678,7 +679,6 @@ def CreateImageListFromImage(img, howMany):
 
 def PadImage(img, bufSz, padValue, dirs):
     pads = [ bufSz if d in 'tblr' else 0 for d in dirs ]
-    print(pads)
     pHeight = img.height + pads[0] + pads[1]
     pWidth = img.width + pads[2] + pads[3]
     # rbPadding = ltPadding if not img.height % 2 else ltPadding + 1

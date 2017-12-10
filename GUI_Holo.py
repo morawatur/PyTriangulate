@@ -76,9 +76,7 @@ class LabelExt(QtGui.QLabel):
                 self.image.buffer = np.log(self.image.buffer)
         else:
             self.image.buffer = np.copy(self.image.amPh.ph)
-        # paddedImage = imsup.PadImageBufferToNx512(self.image, np.max(self.image.buffer))
-        # qImg = QtGui.QImage(imsup.ScaleImage(paddedImage.buffer, 0.0, 255.0).astype(np.uint8),
-        #                     paddedImage.width, paddedImage.height, QtGui.QImage.Format_Indexed8)
+
         qImg = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
                             self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
         pixmap = QtGui.QPixmap(qImg)
@@ -413,25 +411,41 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.pointSets[self.display.image.numInSeries - 1][:] = []
         self.display.repaint()
 
-    # dodac mozliwosc zaznaczenia wiekszej niz 3 liczby punktow w celu dokladniejszego okreslenia srodka obrotu
-    # powinna byc zmienna img_width zamiast dimSize
     def triangulate(self):
-        img_width = self.display.image.width
-        triangles = [ [ CalcRealCoords(img_width, self.display.pointSets[trIdx][pIdx]) for pIdx in range(3) ] for trIdx in range(2) ]
+        curr_img = self.display.image
+        curr_idx = curr_img.numInSeries - 1
+        img_width = curr_img.width
 
-        tr1Dists = [ CalcDistance(triangles[0][pIdx1], triangles[0][pIdx2]) for pIdx1, pIdx2 in zip([0, 0, 1], [1, 2, 2]) ]
-        tr2Dists = [ CalcDistance(triangles[1][pIdx1], triangles[1][pIdx2]) for pIdx1, pIdx2 in zip([0, 0, 1], [1, 2, 2]) ]
+        points1 = self.display.pointSets[curr_idx-1]
+        points2 = self.display.pointSets[curr_idx]
+        n_points1 = len(points1)
+        n_points2 = len(points2)
+
+        if n_points1 != n_points2:
+            print('Mark the same number of points on both images!')
+            return
+
+        poly1 = [ CalcRealCoords(img_width, pt1) for pt1 in points1 ]
+        poly2 = [ CalcRealCoords(img_width, pt2) for pt2 in points2 ]
+
+        poly1_dists = []
+        poly2_dists = []
+        for i in range(len(poly1)):
+            for j in range(i+1, len(poly1)):
+                poly1_dists.append(CalcDistance(poly1[i], poly1[j]))
+                poly2_dists.append(CalcDistance(poly2[i], poly2[j]))
 
         rcSum = [0, 0]
         rotCenters = []
-        for idx1 in range(3):
-            for idx2 in range(idx1+1, 3):
-                rotCenter = tr.FindRotationCenter([triangles[0][idx1], triangles[0][idx2]],
-                                                  [triangles[1][idx1], triangles[1][idx2]])
+        for idx1 in range(len(poly1)):
+            for idx2 in range(idx1+1, len(poly1)):
+                rotCenter = tr.FindRotationCenter([poly1[idx1], poly1[idx2]],
+                                                  [poly2[idx1], poly2[idx2]])
                 rotCenters.append(rotCenter)
+                print(rotCenter)
                 rcSum = list(np.array(rcSum) + np.array(rotCenter))
 
-        rotCenterAvg = list(np.array(rcSum) / 3.0)
+        rotCenterAvg = list(np.array(rcSum) / n_points1)
         rcShift = [ -int(rc) for rc in rotCenterAvg ]
         rcShift.reverse()
         img1 = imsup.CopyImage(self.display.image.prev)
@@ -449,40 +463,27 @@ class TriangulateWidget(QtGui.QWidget):
 
         img1Rc = cc.ShiftImage(img1Pad, rcShift)
         img2Rc = cc.ShiftImage(img2Pad, rcShift)
-        # cropCoords = imsup.MakeSquareCoords(imsup.DetermineCropCoords(img1Rc.width, img1Rc.height, rcShift))
-        # img1Rc = imsup.CropImageROICoords(img1Rc, cropCoords)
-        # img2Rc = imsup.CropImageROICoords(img2Rc, cropCoords)
+
         img1Rc = imsup.CreateImageWithBufferFromImage(img1Rc)
         img2Rc = imsup.CreateImageWithBufferFromImage(img2Rc)
-        # imsup.SaveAmpImage(img1Rc, 'a.png')
-        # imsup.SaveAmpImage(img2Rc, 'b.png')
 
         rotAngles = []
-        for idx, p1, p2 in zip(range(3), triangles[0], triangles[1]):
+        for idx, p1, p2 in zip(range(n_points1), poly1, poly2):
             p1New = CalcNewCoords(p1, rotCenterAvg)
             p2New = CalcNewCoords(p2, rotCenterAvg)
-            triangles[0][idx] = p1New
-            triangles[1][idx] = p2New
+            poly1[idx] = p1New
+            poly2[idx] = p2New
             rotAngles.append(CalcRotAngle(p1New, p2New))
 
         rotAngleAvg = np.average(rotAngles)
 
-        mags = [ dist1 / dist2 for dist1, dist2 in zip(tr1Dists, tr2Dists) ]
+        mags = [ dist1 / dist2 for dist1, dist2 in zip(poly1_dists, poly2_dists) ]
         magAvg = np.average(mags)
 
-        # tr1InnerAngles = [ CalcInnerAngle(a, b, c) for a, b, c in zip(tr1Dists, tr1Dists[-1:] + tr1Dists[:-1], tr1Dists[-2:] + tr1Dists[:-2]) ]
-        # tr2InnerAngles = [ CalcInnerAngle(a, b, c) for a, b, c in zip(tr2Dists, tr2Dists[-1:] + tr2Dists[:-1], tr2Dists[-2:] + tr2Dists[:-2]) ]
-
-        # print('---- Triangle 1 ----')
-        # print([ 'R{0} = {1:.2f} px\n'.format(idx + 1, dist) for idx, dist in zip(range(3), tr1Dists) ])
-        # print([ 'alpha{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), tr1InnerAngles) ])
-        # print('---- Triangle 2 ----')
-        # print([ 'R{0} = {1:.2f} px\n'.format(idx + 1, dist) for idx, dist in zip(range(3), tr2Dists) ])
-        # print([ 'alpha{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), tr2InnerAngles) ])
         print('---- Magnification ----')
-        print([ 'mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(3), mags) ])
+        print([ 'mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(len(mags)), mags) ])
         print('---- Rotation ----')
-        print([ 'phi{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(3), rotAngles) ])
+        print([ 'phi{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(len(rotAngles)), rotAngles) ])
         # print('---- Shifts ----')
         # print([ 'dxy{0} = ({1:.1f}, {2:.1f}) px\n'.format(idx + 1, sh[0], sh[1]) for idx, sh in zip(range(3), shifts) ])
         # print('------------------')
@@ -492,7 +493,6 @@ class TriangulateWidget(QtGui.QWidget):
 
         # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
         img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
-        # img2Rot = imsup.RotateImage(img2Rc, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
 
