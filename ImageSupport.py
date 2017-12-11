@@ -677,7 +677,20 @@ def CreateImageListFromImage(img, howMany):
 
 #-------------------------------------------------------------------
 
+def PadArray(arr, arr_pad, pads, pad_val):
+    p_height, p_width = arr_pad.shape
+    arr_pad[pads[0]:p_height - pads[1], pads[2]:p_width - pads[3]] = np.copy(arr)
+    arr_pad[0:pads[0], :] = pad_val
+    arr_pad[p_height - pads[1]:p_height, :] = pad_val
+    arr_pad[:, 0:pads[2]] = pad_val
+    arr_pad[:, p_width - pads[3]:p_width] = pad_val
+
+#-------------------------------------------------------------------
+
 def PadImage(img, bufSz, padValue, dirs):
+    if bufSz == 0:
+        return img
+
     pads = [ bufSz if d in 'tblr' else 0 for d in dirs ]
     pHeight = img.height + pads[0] + pads[1]
     pWidth = img.width + pads[2] + pads[3]
@@ -687,11 +700,8 @@ def PadImage(img, bufSz, padValue, dirs):
     img.MoveToCPU()
 
     imgPadded = ImageWithBuffer(pHeight, pWidth, img.cmpRepr, img.memType, img.defocus, img.numInSeries)
-    imgPadded.amPh.am[pads[0]:pHeight - pads[1], pads[2]:pWidth - pads[3]] = np.copy(img.amPh.am)
-    imgPadded.amPh.am[0:pads[0], :] = padValue
-    imgPadded.amPh.am[pHeight - pads[1]:pHeight, :] = padValue
-    imgPadded.amPh.am[:, 0:pads[2]] = padValue
-    imgPadded.amPh.am[:, pWidth - pads[3]:pWidth] = padValue
+    PadArray(img.amPh.am, imgPadded.amPh.am, pads, padValue)
+    PadArray(img.amPh.ph, imgPadded.amPh.ph, pads, padValue)
 
     img.ChangeMemoryType(mt)
     return imgPadded

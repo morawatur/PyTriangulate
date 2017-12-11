@@ -501,10 +501,14 @@ class TriangulateWidget(QtGui.QWidget):
         img1RcPad.UpdateBuffer()
         img2Rot.UpdateBuffer()
 
+        mag_factor = curr_img.width / img1RcPad.width
+        img1_mag = tr.RescaleImageSki(img1RcPad, mag_factor)
+        img2_mag = tr.RescaleImageSki(img2Rot, mag_factor)
+
         curr_num = self.display.image.numInSeries
         tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-        tmp_img_list.insert(1, img1RcPad)
-        tmp_img_list.insert(2, img2Rot)
+        tmp_img_list.insert(1, img1_mag)
+        tmp_img_list.insert(2, img2_mag)
         tmp_img_list.UpdateLinks()
         self.display.pointSets.insert(curr_num, [])
         self.display.pointSets.insert(curr_num+1, [])
