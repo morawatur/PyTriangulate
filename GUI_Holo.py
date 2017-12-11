@@ -11,7 +11,6 @@ import Constants as const
 import ImageSupport as imsup
 import CrossCorr as cc
 import Transform as tr
-import Unwarp as uw
 import Holo as holo
 
 # --------------------------------------------------------
@@ -143,7 +142,7 @@ class TriangulateWidget(QtGui.QWidget):
         # cropButton.clicked.connect(self.cropFragment)
         zoomButton.clicked.connect(self.zoom_two_fragments)
 
-        exportButton.clicked.connect(self.exportImage)
+        exportButton.clicked.connect(self.export_image)
         deleteButton.clicked.connect(self.deleteImage)
         clearButton.clicked.connect(self.clearImage)
 
@@ -151,7 +150,7 @@ class TriangulateWidget(QtGui.QWidget):
         warpButton = QtGui.QPushButton('Warp', self)
 
         alignButton.clicked.connect(self.triangulate)
-        warpButton.clicked.connect(partial(self.warpImage, False))
+        warpButton.clicked.connect(partial(self.warp_image, False))
 
         holo_no_ref_1_button = QtGui.QPushButton('Holo 1', self)
         holo_no_ref_2_button = QtGui.QPushButton('Holo 2', self)
@@ -312,10 +311,12 @@ class TriangulateWidget(QtGui.QWidget):
     #     tmp_img_list.UpdateLinks()
     #     self.goToNextImage()
 
-    def exportImage(self):
-        fName = 'img{0}.png'.format(self.display.image.numInSeries)
-        imsup.SaveAmpImage(self.display.image, fName)
-        print('Saved image as "{0}"'.format(fName))
+    def export_image(self):
+        amp_fname = 'amp{0}.png'.format(self.display.image.numInSeries)
+        phs_fname = 'phs{0}.png'.format(self.display.image.numInSeries)
+        imsup.SaveAmpImage(self.display.image, amp_fname)
+        imsup.SavePhaseImage(self.display.image, phs_fname)
+        print('Saved images as "{0}" and "{1}"'.format(amp_fname, phs_fname))
 
     def deleteImage(self):
         curr_img = self.display.image
@@ -491,8 +492,8 @@ class TriangulateWidget(QtGui.QWidget):
         print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
         # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
 
-        # img2Mag = tr.RescaleImageSki2(img2Rc, magAvg)
-        img2Rot = tr.RotateImageSki2(img2Rc, rotAngleAvg, cut=False)
+        # img2Mag = tr.RescaleImageSki(img2Rc, magAvg)
+        img2Rot = tr.RotateImageSki(img2Rc, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
 
@@ -516,57 +517,46 @@ class TriangulateWidget(QtGui.QWidget):
 
         print('Triangulation complete!')
 
-    def warpImage(self, moreAccurate=False):
-        currImg = self.display.image
-        currIdx = self.display.image.numInSeries - 1
-        realPoints1 = CalcRealCoordsForSetOfPoints(currImg.width, self.display.pointSets[currIdx-1])
-        realPoints2 = CalcRealCoordsForSetOfPoints(currImg.width, self.display.pointSets[currIdx])
-        userPoints1 = CalcTopLeftCoordsForSetOfPoints(currImg.width, realPoints1)
-        userPoints2 = CalcTopLeftCoordsForSetOfPoints(currImg.width, realPoints2)
+    def warp_image(self, more_accurate=False):
+        curr_img = self.display.image
+        curr_idx = self.display.image.numInSeries - 1
+        real_points1 = CalcRealCoordsForSetOfPoints(curr_img.width, self.display.pointSets[curr_idx-1])
+        real_points2 = CalcRealCoordsForSetOfPoints(curr_img.width, self.display.pointSets[curr_idx])
+        user_points1 = CalcTopLeftCoordsForSetOfPoints(curr_img.width, real_points1)
+        user_points2 = CalcTopLeftCoordsForSetOfPoints(curr_img.width, real_points2)
 
-        if moreAccurate:
-            nDiv = const.nDivForUnwarp
-            fragDimSize = currImg.width // nDiv
+        if more_accurate:
+            n_div = const.nDivForUnwarp
+            frag_dim_size = curr_img.width // n_div
 
             # points #1
-            gridPoints1 = [ (b, a) for a in range(nDiv) for b in range(nDiv) ]
-            gridPoints1 = [ [ gptx * fragDimSize for gptx in gpt ] for gpt in gridPoints1 ]
+            grid_points1 = [ (b, a) for a in range(n_div) for b in range(n_div) ]
+            grid_points1 = [ [ gptx * frag_dim_size for gptx in gpt ] for gpt in grid_points1 ]
 
-            for pt1 in userPoints1:
-                closestNode = [ np.floor(x / fragDimSize) * fragDimSize for x in pt1 ]
-                gridPoints1 = [ pt1 if gridNode == closestNode else gridNode for gridNode in gridPoints1 ]
+            for pt1 in user_points1:
+                closest_node = [ np.floor(x / frag_dim_size) * frag_dim_size for x in pt1 ]
+                grid_points1 = [ pt1 if grid_node == closest_node else grid_node for grid_node in grid_points1 ]
 
-            src = np.array(gridPoints1)
+            src = np.array(grid_points1)
 
             # points #2
-            gridPoints2 = [ (b, a) for a in range(nDiv) for b in range(nDiv) ]
-            gridPoints2 = [ [ gptx * fragDimSize for gptx in gpt ] for gpt in gridPoints2 ]
-            for pt2 in userPoints2:
-                closestNode = [ np.floor(x / fragDimSize) * fragDimSize for x in pt2 ]
-                gridPoints2 = [ pt2 if gridNode == closestNode else gridNode for gridNode in gridPoints2 ]
+            grid_points2 = [ (b, a) for a in range(n_div) for b in range(n_div) ]
+            grid_points2 = [ [ gptx * frag_dim_size for gptx in gpt ] for gpt in grid_points2 ]
+            for pt2 in user_points2:
+                closestNode = [ np.floor(x / frag_dim_size) * frag_dim_size for x in pt2 ]
+                grid_points2 = [ pt2 if gridNode == closestNode else gridNode for gridNode in grid_points2 ]
 
-            dst = np.array(gridPoints2)
+            dst = np.array(grid_points2)
 
         else:
-            src = np.array(userPoints1)
-            dst = np.array(userPoints2)
+            src = np.array(user_points1)
+            dst = np.array(user_points2)
 
-        currImg.MoveToCPU()
-        oldMin, oldMax = np.min(currImg.amPh.am), np.max(currImg.amPh.am)
-        scaledArray = imsup.ScaleImage(currImg.amPh.am, -1.0, 1.0)
-
-        tform3 = tf.ProjectiveTransform()
-        tform3.estimate(src, dst)
-        warped = tf.warp(scaledArray, tform3, output_shape=(currImg.height, currImg.width)).astype(np.float32)
-        warpedScaledBack = imsup.ScaleImage(warped, oldMin, oldMax)
-
-        imgWarped = imsup.ImageWithBuffer(currImg.height, currImg.width, num=currImg.numInSeries+1)
-        imgWarped.amPh.am = np.copy(warpedScaledBack)
-        imgWarped.UpdateBuffer()
+        img_warp = tr.WarpImage(curr_img, src, dst)
 
         curr_num = self.display.image.numInSeries
         tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-        tmp_img_list.insert(1, imgWarped)
+        tmp_img_list.insert(1, img_warp)
         tmp_img_list.UpdateLinks()
         self.display.pointSets.insert(curr_num, [])
         self.goToNextImage()

@@ -94,6 +94,53 @@ def RescaleImageSki(img, factor):
 
 #-------------------------------------------------------------------
 
+def WarpImage(img, src_set, dst_set):
+    mt = img.memType
+    dt = img.cmpRepr
+    img.ReIm2AmPh()
+    img.MoveToCPU()
+
+    amp_limits = [np.min(img.amPh.am), np.max(img.amPh.am)]
+    phs_limits = [np.min(img.amPh.ph), np.max(img.amPh.ph)]
+
+    if amp_limits[0] < -1.0 or amp_limits[1] > 1.0:
+        amp_scaled = imsup.ScaleImage(img.amPh.am, -1.0, 1.0)
+    else:
+        amp_scaled = np.copy(img.amPh.am)
+
+    if phs_limits[0] < -1.0 or phs_limits[1] > 1.0:
+        phs_scaled = imsup.ScaleImage(img.amPh.ph, -1.0, 1.0)
+    else:
+        phs_scaled = np.copy(img.amPh.ph)
+
+    tform3 = tr.ProjectiveTransform()
+    tform3.estimate(src_set, dst_set)
+    amp_warp = tr.warp(amp_scaled, tform3, output_shape=amp_scaled.shape).astype(np.float32)
+    phs_warp = tr.warp(phs_scaled, tform3, output_shape=amp_scaled.shape).astype(np.float32)
+
+    if amp_limits[0] < -1.0 or amp_limits[1] > 1.0:
+        amp_warp_rescaled = imsup.ScaleImage(amp_warp, amp_limits[0], amp_limits[1])
+    else:
+        amp_warp_rescaled = np.copy(amp_warp)
+
+    if phs_limits[0] < -1.0 or phs_limits[1] > 1.0:
+        phs_warp_rescaled = imsup.ScaleImage(phs_warp, phs_limits[0], phs_limits[1])
+    else:
+        phs_warp_rescaled = np.copy(phs_warp)
+
+    img_warp = imsup.ImageWithBuffer(amp_warp.shape[0], amp_warp.shape[1], defocus=img.defocus, num=img.numInSeries)
+    img_warp.LoadAmpData(amp_warp_rescaled)
+    img_warp.LoadPhsData(phs_warp_rescaled)
+
+    img.ChangeMemoryType(mt)
+    img.ChangeComplexRepr(dt)
+    img_warp.ChangeMemoryType(mt)
+    img_warp.ChangeComplexRepr(dt)
+
+    return img_warp
+
+#-------------------------------------------------------------------
+
 def RotateAndMagnifyWrapper(img, todo='mr', factor=1.0, angle=0.0):
     mt = img.memType
     dt = img.cmpRepr
