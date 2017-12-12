@@ -226,6 +226,16 @@ class ImageList(list):
 
 #-------------------------------------------------------------------
 
+def AmPh2ReIm_cpu(amp, phs):
+    return amp * np.exp(1j * phs)
+
+# ---------------------------------------------------------------
+
+def ReIm2AmPh_cpu(x):
+    return np.abs(x), np.angle(x)
+
+#-------------------------------------------------------------------
+
 @cuda.jit('void(complex64[:, :], float32[:, :], float32[:, :])')
 def ReIm2AmPh_dev(reIm, am, ph):
     x, y = cuda.grid(2)
@@ -616,22 +626,16 @@ def ClearImageData(img):
 def CopyImage(img):
     mt = img.memType
     dt = img.cmpRepr
-    # img.MoveToGPU()
     img.AmPh2ReIm()
     img.MoveToCPU()
-    # img.AmPh2ReIm()
-    imgCopy = ImageWithBuffer(img.height, img.width, img.cmpRepr, img.memType, img.defocus, img.numInSeries)
-    # imgCopy.reIm.copy_to_device(img.reIm)
+
+    imgCopy = ImageWithBuffer(img.height, img.width, cmpRepr=img.cmpRepr, memType=img.memType, defocus=img.defocus, num=img.numInSeries)
     imgCopy.reIm = np.copy(img.reIm)
-    # imgCopy.ReIm2AmPh()         # !!!
-    # imgCopy.UpdateBuffer()      # !!!
 
     if img.prev is not None:
         imgCopy.prev = img.prev
-        # img.prev.next = imgCopy
     if img.next is not None:
         imgCopy.next = img.next
-        # img.next.prev = imgCopy
 
     img.ChangeComplexRepr(dt)
     img.ChangeMemoryType(mt)

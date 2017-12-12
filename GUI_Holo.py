@@ -4,7 +4,6 @@ from os import path
 from functools import partial
 import numpy as np
 
-from skimage import transform as tf
 from PyQt4 import QtGui, QtCore
 import Dm3Reader3_New as dm3
 import Constants as const
@@ -151,7 +150,7 @@ class TriangulateWidget(QtGui.QWidget):
         alignButton.clicked.connect(self.triangulate)
         warpButton.clicked.connect(partial(self.warp_image, False))
 
-        holo_no_ref_1_button = QtGui.QPushButton('Holo 1', self)
+        holo_no_ref_1_button = QtGui.QPushButton('Holo 1 (FFT)', self)
         holo_no_ref_2_button = QtGui.QPushButton('Holo 2', self)
         holo_no_ref_3_button = QtGui.QPushButton('Holo 3', self)
         # holo_with_ref_button = QtGui.QPushButton('Holo with ref', self)
@@ -167,6 +166,9 @@ class TriangulateWidget(QtGui.QWidget):
         sum_button.clicked.connect(self.calc_phs_sum)
         diff_button.clicked.connect(self.calc_phs_diff)
 
+        sum_button.setFixedWidth(60)
+        diff_button.setFixedWidth(60)
+
         self.show_lines_checkbox = QtGui.QCheckBox('Show lines', self)
         self.show_lines_checkbox.setChecked(True)
         self.show_lines_checkbox.toggled.connect(self.toggle_lines)
@@ -176,9 +178,16 @@ class TriangulateWidget(QtGui.QWidget):
         self.show_labels_checkbox.toggled.connect(self.toggle_labels)
 
         self.log_scale_checkbox = QtGui.QCheckBox('Log scale', self)
-        self.log_scale_checkbox.setFixedWidth(self.width() // 8)
         self.log_scale_checkbox.setChecked(False)
         self.log_scale_checkbox.toggled.connect(self.update_display)
+
+        self.phs_unwrap_checkbox = QtGui.QCheckBox('Unwrap phase', self)
+        self.phs_unwrap_checkbox.setChecked(False)
+        # self.phs_unwrap_checkbox.toggled.connect(self.unwrap_img_phase)
+
+        phs_uw_ok_button = QtGui.QPushButton('OK', self)
+        phs_uw_ok_button.setFixedWidth(40)
+        phs_uw_ok_button.clicked.connect(self.unwrap_img_phase)
 
         self.amp_radio_button = QtGui.QRadioButton('Amplitude', self)
         self.phs_radio_button = QtGui.QRadioButton('Phase', self)
@@ -221,12 +230,18 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_disp.addStretch(1)
         vbox_disp.addWidget(clearButton)
 
+        hbox_phsuw = QtGui.QHBoxLayout()
+        hbox_phsuw.addWidget(self.phs_unwrap_checkbox)
+        hbox_phsuw.addWidget(phs_uw_ok_button)
+
         vbox_amph = QtGui.QVBoxLayout()
         vbox_amph.addWidget(self.amp_radio_button)
         vbox_amph.addStretch(1)
         vbox_amph.addWidget(self.phs_radio_button)
         vbox_amph.addStretch(1)
         vbox_amph.addWidget(self.log_scale_checkbox)
+        vbox_amph.addStretch(1)
+        vbox_amph.addLayout(hbox_phsuw)
 
         hbox_calc = QtGui.QHBoxLayout()
         hbox_calc.addWidget(sum_button)
@@ -262,7 +277,6 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_opt.addLayout(hbox_holo)
         # vbox_opt.addStretch(1)
         # vbox_opt.addWidget(holo_with_ref_button)
-
 
         hbox_panel = QtGui.QHBoxLayout()
         hbox_panel.addLayout(vbox_nav)
@@ -398,6 +412,21 @@ class TriangulateWidget(QtGui.QWidget):
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         self.display.setImage(dispAmp=is_amp_checked, logScale=is_log_scale_checked)
 
+    def unwrap_img_phase(self):
+        curr_img = self.display.image
+        is_phs_unwrap_checked = self.phs_unwrap_checkbox.isChecked()
+
+        if is_phs_unwrap_checked:
+            new_phs = tr.unwrap_phase(curr_img.amPh.ph)
+        else:
+            uw_min = np.min(curr_img.amPh.ph)
+            if uw_min > 0:
+                uw_min = 0
+            new_phs = (curr_img.amPh.ph - uw_min) % (2 * np.pi) - np.pi
+
+        curr_img.amPh.ph = np.copy(new_phs)
+        self.update_display()
+
     def zoom_two_fragments(self):
         curr_idx = self.display.image.numInSeries - 1
         if len(self.display.pointSets[curr_idx]) < 2:
@@ -470,13 +499,8 @@ class TriangulateWidget(QtGui.QWidget):
         img1 = imsup.CopyImage(self.display.image.prev)
         img2 = imsup.CopyImage(self.display.image)
 
-        # ten padding trzeba jednak dodac ze wszystkich stron
         bufSz = max([abs(x) for x in rcShift])
-        # dirV = 't-' if rcShift[1] > 0 else '-b'
-        # dirH = 'l-' if rcShift[0] > 0 else '-r'
         dirs = 'tblr'
-        # img1Pad = imsup.PadImage(img1, bufSz, 0.0, dirV+dirH)
-        # img2Pad = imsup.PadImage(img2, bufSz, 0.0, dirV+dirH)
         img1Pad = imsup.PadImage(img1, bufSz, 0.0, dirs)
         img2Pad = imsup.PadImage(img2, bufSz, 0.0, dirs)
 

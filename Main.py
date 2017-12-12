@@ -6,7 +6,7 @@ dev = cuda.get_current_device()
 print('CUDA device in use: ' + dev.name.decode())
 
 # Potrzebne jeszcze:
-# - unwrapping fazy?
+# - funkcje polar i rect z cmath dzialaja zle na GPU, jezeli faza przekracza 2pi
 # - holo z referencja
 # - kontrola jasnosci, gammy i kontrastu
 
