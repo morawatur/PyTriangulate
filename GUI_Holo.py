@@ -134,13 +134,12 @@ class TriangulateWidget(QtGui.QWidget):
         flipButton = QtGui.QPushButton('Flip', self)
         zoomButton = QtGui.QPushButton('Zoom', self)
 
+        flipButton.clicked.connect(self.flip_image_h)
+        zoomButton.clicked.connect(self.zoom_two_fragments)
+
         exportButton = QtGui.QPushButton('Export', self)
         deleteButton = QtGui.QPushButton('Delete', self)
         clearButton = QtGui.QPushButton('Clear', self)
-
-        flipButton.clicked.connect(self.flip_image_h)
-        # cropButton.clicked.connect(self.cropFragment)
-        zoomButton.clicked.connect(self.zoom_two_fragments)
 
         exportButton.clicked.connect(self.export_image)
         deleteButton.clicked.connect(self.deleteImage)
@@ -163,7 +162,7 @@ class TriangulateWidget(QtGui.QWidget):
         # holo_with_ref_button.clicked.connect(self.rec_holo_with_ref)
 
         sum_button = QtGui.QPushButton('Sum', self)
-        diff_button = QtGui.QPushButton('Difference', self)
+        diff_button = QtGui.QPushButton('Diff', self)
 
         sum_button.clicked.connect(self.calc_phs_sum)
         diff_button.clicked.connect(self.calc_phs_diff)
@@ -177,6 +176,7 @@ class TriangulateWidget(QtGui.QWidget):
         self.show_labels_checkbox.toggled.connect(self.toggle_labels)
 
         self.log_scale_checkbox = QtGui.QCheckBox('Log scale', self)
+        self.log_scale_checkbox.setFixedWidth(self.width() // 8)
         self.log_scale_checkbox.setChecked(False)
         self.log_scale_checkbox.toggled.connect(self.update_display)
 
@@ -186,6 +186,14 @@ class TriangulateWidget(QtGui.QWidget):
 
         self.amp_radio_button.toggled.connect(self.update_display)
         self.phs_radio_button.toggled.connect(self.update_display)
+
+        self.aperture_label = QtGui.QLabel('Aperture [px]', self)
+        self.aperture_input = QtGui.QLineEdit(str(const.aperture), self)
+        self.aperture_input.setFixedWidth(self.width() // 6)
+
+        self.hann_win_label = QtGui.QLabel('Hann window [px]', self)
+        self.hann_win_input = QtGui.QLineEdit(str(const.hann_win), self)
+        self.hann_win_input.setFixedWidth(self.width() // 6)
 
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
@@ -206,51 +214,61 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_nav.addStretch(1)
         vbox_nav.addLayout(hbox_imgop)
 
-        vbox_check = QtGui.QVBoxLayout()
-        vbox_check.addWidget(self.show_lines_checkbox)
-        vbox_check.addStretch(1)
-        vbox_check.addWidget(self.show_labels_checkbox)
-        vbox_check.addStretch(1)
-        vbox_check.addWidget(self.log_scale_checkbox)
-
-        vbox_radio = QtGui.QVBoxLayout()
-        vbox_radio.addWidget(self.amp_radio_button)
-        vbox_radio.addStretch(1)
-        vbox_radio.addWidget(self.phs_radio_button)
-
-        hbox_disp = QtGui.QHBoxLayout()
-        hbox_disp.addLayout(vbox_check)
-        hbox_disp.addLayout(vbox_radio)
-
         vbox_disp = QtGui.QVBoxLayout()
-        vbox_disp.addLayout(hbox_disp)
+        vbox_disp.addWidget(self.show_lines_checkbox)
+        vbox_disp.addStretch(1)
+        vbox_disp.addWidget(self.show_labels_checkbox)
         vbox_disp.addStretch(1)
         vbox_disp.addWidget(clearButton)
 
-        hbox_align = QtGui.QHBoxLayout()
-        hbox_align.addWidget(alignButton)
-        hbox_align.addWidget(warpButton)
-
-        hbox_holo = QtGui.QHBoxLayout()
-        hbox_holo.addWidget(holo_no_ref_1_button)
-        hbox_holo.addWidget(holo_no_ref_2_button)
-        hbox_holo.addWidget(holo_no_ref_3_button)
-        # hbox_holo.addWidget(holo_with_ref_button)
+        vbox_amph = QtGui.QVBoxLayout()
+        vbox_amph.addWidget(self.amp_radio_button)
+        vbox_amph.addStretch(1)
+        vbox_amph.addWidget(self.phs_radio_button)
+        vbox_amph.addStretch(1)
+        vbox_amph.addWidget(self.log_scale_checkbox)
 
         hbox_calc = QtGui.QHBoxLayout()
         hbox_calc.addWidget(sum_button)
         hbox_calc.addWidget(diff_button)
 
+        vbox_align = QtGui.QVBoxLayout()
+        vbox_align.addWidget(alignButton)
+        vbox_align.addStretch(1)
+        vbox_align.addWidget(warpButton)
+        vbox_align.addStretch(1)
+        vbox_align.addLayout(hbox_calc)
+
+        vbox_aper = QtGui.QVBoxLayout()
+        vbox_aper.addWidget(self.aperture_label)
+        vbox_aper.addWidget(self.aperture_input)
+
+        vbox_hann = QtGui.QVBoxLayout()
+        vbox_hann.addWidget(self.hann_win_label)
+        vbox_hann.addWidget(self.hann_win_input)
+
+        hbox_pars = QtGui.QHBoxLayout()
+        hbox_pars.addLayout(vbox_aper)
+        hbox_pars.addLayout(vbox_hann)
+
+        hbox_holo = QtGui.QHBoxLayout()
+        hbox_holo.addWidget(holo_no_ref_1_button)
+        hbox_holo.addWidget(holo_no_ref_2_button)
+        hbox_holo.addWidget(holo_no_ref_3_button)
+
         vbox_opt = QtGui.QVBoxLayout()
-        vbox_opt.addLayout(hbox_align)
+        vbox_opt.addLayout(hbox_pars)
         vbox_opt.addStretch(1)
         vbox_opt.addLayout(hbox_holo)
-        vbox_opt.addStretch(1)
-        vbox_opt.addLayout(hbox_calc)
+        # vbox_opt.addStretch(1)
+        # vbox_opt.addWidget(holo_with_ref_button)
+
 
         hbox_panel = QtGui.QHBoxLayout()
         hbox_panel.addLayout(vbox_nav)
         hbox_panel.addLayout(vbox_disp)
+        hbox_panel.addLayout(vbox_amph)
+        hbox_panel.addLayout(vbox_align)
         hbox_panel.addLayout(vbox_opt)
 
         vbox_main = QtGui.QVBoxLayout()
@@ -591,7 +609,10 @@ class TriangulateWidget(QtGui.QWidget):
         mid = holo_fft.width // 2
         shift = [ mid - sband_xy[1], mid - sband_xy[0] ]    # konwencja x, y
 
-        sband_img_ap = holo.rec_holo_no_ref_2(holo_fft, shift, ap_sz=50)
+        aperture = int(self.aperture_input.text())
+        hann_window = int(self.hann_win_input.text())
+
+        sband_img_ap = holo.rec_holo_no_ref_2(holo_fft, shift, ap_sz=aperture, N_hann=hann_window)
         self.log_scale_checkbox.setChecked(False)
         self.insert_img_after_curr(sband_img_ap)
 

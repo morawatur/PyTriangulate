@@ -6,7 +6,8 @@ dev = cuda.get_current_device()
 print('CUDA device in use: ' + dev.name.decode())
 
 # Potrzebne jeszcze:
-# - panel z parametrami rekonstrukcji holo (wielkosc maski itp.)
-# - dodac mozliwosc zaznaczenia wiecej niz trzech punktow do triangulacji
+# - unwrapping fazy?
+# - holo z referencja
+# - kontrola jasnosci, gammy i kontrastu
 
 gui.RunTriangulationWindow()
