@@ -278,24 +278,38 @@ def GetShift(ccf):
 
 #-------------------------------------------------------------------
 
+def shift_am_ph_image(img, shift):
+    mt = img.memType
+    img.MoveToGPU()
+
+    img_shifted = imsup.ImageWithBuffer(img.height, img.width, img.cmpRepr, img.memType)
+    shift_d = cuda.to_device(np.array(shift))
+
+    blockDim, gridDim = ccfg.DetermineCudaConfigNew(img.amPh.am.shape)
+    ShiftImage_dev[gridDim, blockDim](img.amPh.am, img_shifted.amPh.am, shift_d, 0.0)
+    ShiftImage_dev[gridDim, blockDim](img.amPh.ph, img_shifted.amPh.ph, shift_d, 0.0)
+
+    img.ChangeMemoryType(mt)
+    img_shifted.ChangeMemoryType(mt)
+    return img_shifted
+
+#-------------------------------------------------------------------
+
 def ShiftImage(img, shift):
+    mt = img.memType
     dt = img.cmpRepr
+    img.MoveToGPU()
     img.AmPh2ReIm()
-    imgShifted = imsup.Image(img.height, img.width, img.cmpRepr, imsup.Image.mem['GPU'])
+
+    imgShifted = imsup.Image(img.height, img.width, img.cmpRepr, img.memType)
     shift_d = cuda.to_device(np.array(shift))
     blockDim, gridDim = ccfg.DetermineCudaConfigNew(img.reIm.shape)
     ShiftImage_dev[gridDim, blockDim](img.reIm, imgShifted.reIm, shift_d, 0.0)
+
     img.ChangeComplexRepr(dt)
+    img.ChangeMemoryType(mt)
     imgShifted.ChangeComplexRepr(dt)
-
-    # imgShifted.prev = img.prev
-    # imgShifted.next = img.next
-    # if imgShifted.prev is not None:
-    #     imgShifted.prev.next = imgShifted
-    # if imgShifted.next is not None:
-    #     imgShifted.next.prev = imgShifted
-
-    # print('Image was shifted by ({0}, {1}) px'.format(shift[1], shift[0]))
+    imgShifted.ChangeMemoryType(mt)
     return imgShifted
 
 #-------------------------------------------------------------------

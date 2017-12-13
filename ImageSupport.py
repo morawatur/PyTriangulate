@@ -356,6 +356,25 @@ def SavePhaseImage(img, fPath, log=False):
 
 # -------------------------------------------------------------------
 
+def crop_am_ph_roi(img, coords):
+    mt = img.memType
+    img.MoveToGPU()
+
+    roi_h = coords[3] - coords[1]
+    roi_w = coords[2] - coords[0]
+    roi = ImageWithBuffer(roi_h, roi_w, img.cmpRepr, img.memType)
+    top_left_d = cuda.to_device(np.array(coords[:2], dtype=np.int32))
+
+    block_dim, grid_dim = ccfg.DetermineCudaConfigNew((roi_h, roi_w))
+    CropImageROICoords_dev[grid_dim, block_dim](img.amPh.am, roi.amPh.am, top_left_d)
+    CropImageROICoords_dev[grid_dim, block_dim](img.amPh.ph, roi.amPh.ph, top_left_d)
+
+    img.ChangeMemoryType(mt)
+    roi.ChangeMemoryType(mt)
+    return roi
+
+# -------------------------------------------------------------------
+
 def CropImageROICoords(img, coords):
     roiHeight = coords[3] - coords[1]
     roiWidth = coords[2] - coords[0]
@@ -623,6 +642,21 @@ def ClearImageData(img):
 
 #-------------------------------------------------------------------
 
+def copy_am_ph_image(img):
+    img.MoveToCPU()
+    img_copy = ImageWithBuffer(img.height, img.width, cmpRepr=img.cmpRepr, memType=img.memType, defocus=img.defocus, num=img.numInSeries)
+    img_copy.amPh.am = np.copy(img.amPh.am)
+    img_copy.amPh.ph = np.copy(img.amPh.ph)
+
+    if img.prev is not None:
+        img_copy.prev = img.prev
+    if img.next is not None:
+        img_copy.next = img.next
+
+    return img_copy
+
+#-------------------------------------------------------------------
+
 def CopyImage(img):
     mt = img.memType
     dt = img.cmpRepr
@@ -642,6 +676,13 @@ def CopyImage(img):
     imgCopy.ChangeComplexRepr(dt)
     imgCopy.ChangeMemoryType(mt)
     return imgCopy
+
+#-------------------------------------------------------------------
+
+def create_imgbuf_from_img(img):
+    img_buf = copy_am_ph_image(img)
+    img_buf.UpdateBuffer()
+    return img_buf
 
 #-------------------------------------------------------------------
 

@@ -442,8 +442,8 @@ class TriangulateWidget(QtGui.QWidget):
         self.zoom_fragment(curr_img, real_crop_coords)
 
     def zoom_fragment(self, img, coords):
-        crop_img = imsup.CropImageROICoords(img, coords)
-        crop_img = imsup.CreateImageWithBufferFromImage(crop_img)
+        crop_img = imsup.crop_am_ph_roi(img, coords)
+        crop_img = imsup.create_imgbuf_from_img(crop_img)
         crop_img.MoveToCPU()
 
         orig_width = img.width
@@ -496,19 +496,19 @@ class TriangulateWidget(QtGui.QWidget):
         rotCenterAvg = list(np.array(rcSum) / n_points1)
         rcShift = [ -int(rc) for rc in rotCenterAvg ]
         rcShift.reverse()
-        img1 = imsup.CopyImage(self.display.image.prev)
-        img2 = imsup.CopyImage(self.display.image)
+        img1 = imsup.copy_am_ph_image(self.display.image.prev)
+        img2 = imsup.copy_am_ph_image(self.display.image)
 
         bufSz = max([abs(x) for x in rcShift])
         dirs = 'tblr'
         img1Pad = imsup.PadImage(img1, bufSz, 0.0, dirs)
         img2Pad = imsup.PadImage(img2, bufSz, 0.0, dirs)
 
-        img1Rc = cc.ShiftImage(img1Pad, rcShift)
-        img2Rc = cc.ShiftImage(img2Pad, rcShift)
+        img1Rc = cc.shift_am_ph_image(img1Pad, rcShift)
+        img2Rc = cc.shift_am_ph_image(img2Pad, rcShift)
 
-        img1Rc = imsup.CreateImageWithBufferFromImage(img1Rc)
-        img2Rc = imsup.CreateImageWithBufferFromImage(img2Rc)
+        img1Rc = imsup.create_imgbuf_from_img(img1Rc)
+        img2Rc = imsup.create_imgbuf_from_img(img2Rc)
 
         rotAngles = []
         for idx, p1, p2 in zip(range(n_points1), poly1, poly2):
