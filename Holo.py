@@ -56,7 +56,7 @@ def mult_by_hann_window(img, N=100):
 
     hann_win = imsup.ImageWithBuffer(N, N)
     hann_win.LoadAmpData(hann_2d)
-    imsup.SaveAmpImage(hann_win, 'hann.png')
+    # imsup.SaveAmpImage(hann_win, 'hann.png')
 
     hmin, hmax = (img.width - N) // 2, (img.width + N) // 2
     new_img.amPh.am[hmin:hmax, hmin:hmax] *= hann_2d
@@ -135,8 +135,6 @@ def rec_holo_no_ref(holo_img, rec_sz=128, ap_sz=32, mask_sz=50, N_hann=100):
 #-------------------------------------------------------------------
 
 def calc_phase_sum(img1, img2):
-    img1.ReIm2AmPh()
-    img2.ReIm2AmPh()
     img1.MoveToCPU()
     img2.MoveToCPU()
 
@@ -148,8 +146,6 @@ def calc_phase_sum(img1, img2):
 #-------------------------------------------------------------------
 
 def calc_phase_diff(img1, img2):
-    img1.ReIm2AmPh()
-    img2.ReIm2AmPh()
     img1.MoveToCPU()
     img2.MoveToCPU()
 

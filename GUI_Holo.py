@@ -150,6 +150,10 @@ class TriangulateWidget(QtGui.QWidget):
         alignButton.clicked.connect(self.triangulate)
         warpButton.clicked.connect(partial(self.warp_image, False))
 
+        fname_label = QtGui.QLabel('File name', self)
+        self.fname_input = QtGui.QLineEdit('img', self)
+        self.fname_input.setFixedWidth(self.width() // 6)
+
         holo_no_ref_1_button = QtGui.QPushButton('Holo 1 (FFT)', self)
         holo_no_ref_2_button = QtGui.QPushButton('Holo 2', self)
         holo_no_ref_3_button = QtGui.QPushButton('Holo 3', self)
@@ -159,15 +163,6 @@ class TriangulateWidget(QtGui.QWidget):
         holo_no_ref_2_button.clicked.connect(self.rec_holo_no_ref_2)
         holo_no_ref_3_button.clicked.connect(self.rec_holo_no_ref_3)
         # holo_with_ref_button.clicked.connect(self.rec_holo_with_ref)
-
-        sum_button = QtGui.QPushButton('Sum', self)
-        diff_button = QtGui.QPushButton('Diff', self)
-
-        sum_button.clicked.connect(self.calc_phs_sum)
-        diff_button.clicked.connect(self.calc_phs_diff)
-
-        sum_button.setFixedWidth(60)
-        diff_button.setFixedWidth(60)
 
         self.show_lines_checkbox = QtGui.QCheckBox('Show lines', self)
         self.show_lines_checkbox.setChecked(True)
@@ -183,7 +178,6 @@ class TriangulateWidget(QtGui.QWidget):
 
         self.phs_unwrap_checkbox = QtGui.QCheckBox('Unwrap phase', self)
         self.phs_unwrap_checkbox.setChecked(False)
-        # self.phs_unwrap_checkbox.toggled.connect(self.unwrap_img_phase)
 
         phs_uw_ok_button = QtGui.QPushButton('OK', self)
         phs_uw_ok_button.setFixedWidth(40)
@@ -196,13 +190,29 @@ class TriangulateWidget(QtGui.QWidget):
         self.amp_radio_button.toggled.connect(self.update_display)
         self.phs_radio_button.toggled.connect(self.update_display)
 
-        self.aperture_label = QtGui.QLabel('Aperture [px]', self)
+        aperture_label = QtGui.QLabel('Aperture [px]', self)
         self.aperture_input = QtGui.QLineEdit(str(const.aperture), self)
         self.aperture_input.setFixedWidth(self.width() // 6)
 
-        self.hann_win_label = QtGui.QLabel('Hann window [px]', self)
+        hann_win_label = QtGui.QLabel('Hann window [px]', self)
         self.hann_win_input = QtGui.QLineEdit(str(const.hann_win), self)
         self.hann_win_input.setFixedWidth(self.width() // 6)
+
+        sum_button = QtGui.QPushButton('Sum', self)
+        diff_button = QtGui.QPushButton('Diff', self)
+
+        sum_button.clicked.connect(self.calc_phs_sum)
+        diff_button.clicked.connect(self.calc_phs_diff)
+
+        sum_button.setFixedWidth(60)
+        diff_button.setFixedWidth(60)
+
+        self.amp_factor_input = QtGui.QLineEdit('2.0', self)
+        self.amp_factor_input.setFixedWidth(60)
+
+        amplify_button = QtGui.QPushButton('Amplify', self)
+        amplify_button.clicked.connect(self.amplify_phase)
+        amplify_button.setFixedWidth(60)
 
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
@@ -243,23 +253,23 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_amph.addStretch(1)
         vbox_amph.addLayout(hbox_phsuw)
 
-        hbox_calc = QtGui.QHBoxLayout()
-        hbox_calc.addWidget(sum_button)
-        hbox_calc.addWidget(diff_button)
+        vbox_fname = QtGui.QVBoxLayout()
+        vbox_fname.addWidget(fname_label)
+        vbox_fname.addWidget(self.fname_input)
 
         vbox_align = QtGui.QVBoxLayout()
+        vbox_align.addLayout(vbox_fname)
+        vbox_align.addStretch(1)
         vbox_align.addWidget(alignButton)
         vbox_align.addStretch(1)
         vbox_align.addWidget(warpButton)
-        vbox_align.addStretch(1)
-        vbox_align.addLayout(hbox_calc)
 
         vbox_aper = QtGui.QVBoxLayout()
-        vbox_aper.addWidget(self.aperture_label)
+        vbox_aper.addWidget(aperture_label)
         vbox_aper.addWidget(self.aperture_input)
 
         vbox_hann = QtGui.QVBoxLayout()
-        vbox_hann.addWidget(self.hann_win_label)
+        vbox_hann.addWidget(hann_win_label)
         vbox_hann.addWidget(self.hann_win_input)
 
         hbox_pars = QtGui.QHBoxLayout()
@@ -271,10 +281,18 @@ class TriangulateWidget(QtGui.QWidget):
         hbox_holo.addWidget(holo_no_ref_2_button)
         hbox_holo.addWidget(holo_no_ref_3_button)
 
+        hbox_calc = QtGui.QHBoxLayout()
+        hbox_calc.addWidget(sum_button)
+        hbox_calc.addWidget(diff_button)
+        hbox_calc.addWidget(self.amp_factor_input)
+        hbox_calc.addWidget(amplify_button)
+
         vbox_opt = QtGui.QVBoxLayout()
         vbox_opt.addLayout(hbox_pars)
         vbox_opt.addStretch(1)
         vbox_opt.addLayout(hbox_holo)
+        vbox_opt.addStretch(1)
+        vbox_opt.addLayout(hbox_calc)
         # vbox_opt.addStretch(1)
         # vbox_opt.addWidget(holo_with_ref_button)
 
@@ -344,11 +362,18 @@ class TriangulateWidget(QtGui.QWidget):
     #     self.goToNextImage()
 
     def export_image(self):
-        amp_fname = 'amp{0}.png'.format(self.display.image.numInSeries)
-        phs_fname = 'phs{0}.png'.format(self.display.image.numInSeries)
-        imsup.SaveAmpImage(self.display.image, amp_fname)
-        imsup.SavePhaseImage(self.display.image, phs_fname)
-        print('Saved images as "{0}" and "{1}"'.format(amp_fname, phs_fname))
+        curr_num = self.display.image.numInSeries
+        fname = self.fname_input.text()
+        is_amp_checked = self.amp_radio_button.isChecked()
+
+        if fname == '':
+            fname = 'amp{0}'.format(curr_num) if is_amp_checked else 'phs{0}'.format(curr_num)
+
+        if is_amp_checked:
+            imsup.SaveAmpImage(self.display.image, '{0}.png'.format(fname))
+        else:
+            imsup.SavePhaseImage(self.display.image, '{0}.png'.format(fname))
+        print('Saved image as "{0}.png"'.format(fname))
 
     def deleteImage(self):
         curr_img = self.display.image
@@ -675,28 +700,22 @@ class TriangulateWidget(QtGui.QWidget):
         rec_holo2 = self.display.image
 
         phs_sum = holo.calc_phase_sum(rec_holo1, rec_holo2)
-
-        curr_num = self.display.image.numInSeries
-        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-        tmp_img_list.insert(1, phs_sum)
-        tmp_img_list.UpdateLinks()
-
-        self.display.pointSets.insert(curr_num, [])
-        self.goToNextImage()
+        self.insert_img_after_curr(phs_sum)
 
     def calc_phs_diff(self):
         rec_holo1 = self.display.image.prev
         rec_holo2 = self.display.image
 
         phs_diff = holo.calc_phase_diff(rec_holo1, rec_holo2)
+        self.insert_img_after_curr(phs_diff)
 
-        curr_num = self.display.image.numInSeries
-        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-        tmp_img_list.insert(1, phs_diff)
-        tmp_img_list.UpdateLinks()
+    def amplify_phase(self):
+        curr_img = self.display.image
+        amp_factor = float(self.amp_factor_input.text())
 
-        self.display.pointSets.insert(curr_num, [])
-        self.goToNextImage()
+        phs_amplified = imsup.copy_am_ph_image(curr_img)
+        phs_amplified.amPh.ph = np.cos(amp_factor * curr_img.amPh.ph)
+        self.insert_img_after_curr(phs_amplified)
 
 # --------------------------------------------------------
 
