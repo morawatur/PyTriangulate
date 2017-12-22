@@ -121,6 +121,7 @@ class TriangulateWidget(QtGui.QWidget):
         imagePath = QtGui.QFileDialog.getOpenFileName()
         image = LoadImageSeriesFromFirstFile(imagePath)
         self.display = LabelExt(self, image)
+        self.shift = [0, 0]
         self.initUI()
 
     def initUI(self):
@@ -145,24 +146,26 @@ class TriangulateWidget(QtGui.QWidget):
         clearButton.clicked.connect(self.clearImage)
 
         alignButton = QtGui.QPushButton('Align', self)
+        shiftButton = QtGui.QPushButton('Shift', self)
         warpButton = QtGui.QPushButton('Warp', self)
 
         alignButton.clicked.connect(self.triangulate)
+        shiftButton.clicked.connect(self.shift_from_last)
         warpButton.clicked.connect(partial(self.warp_image, False))
 
         fname_label = QtGui.QLabel('File name', self)
         self.fname_input = QtGui.QLineEdit('img', self)
         self.fname_input.setFixedWidth(self.width() // 6)
 
-        holo_no_ref_1_button = QtGui.QPushButton('Holo 1 (FFT)', self)
-        holo_no_ref_2_button = QtGui.QPushButton('Holo 2', self)
-        holo_no_ref_3_button = QtGui.QPushButton('Holo 3', self)
-        # holo_with_ref_button = QtGui.QPushButton('Holo with ref', self)
+        holo_no_ref_1_button = QtGui.QPushButton('FFT', self)
+        holo_no_ref_2_button = QtGui.QPushButton('Holo', self)
+        holo_with_ref_2_button = QtGui.QPushButton('Holo+Ref', self)
+        holo_no_ref_3_button = QtGui.QPushButton('IFFT', self)
 
         holo_no_ref_1_button.clicked.connect(self.rec_holo_no_ref_1)
         holo_no_ref_2_button.clicked.connect(self.rec_holo_no_ref_2)
+        holo_with_ref_2_button.clicked.connect(self.rec_holo_with_ref_2)
         holo_no_ref_3_button.clicked.connect(self.rec_holo_no_ref_3)
-        # holo_with_ref_button.clicked.connect(self.rec_holo_with_ref)
 
         self.show_lines_checkbox = QtGui.QCheckBox('Show lines', self)
         self.show_lines_checkbox.setChecked(True)
@@ -257,10 +260,17 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_fname.addWidget(fname_label)
         vbox_fname.addWidget(self.fname_input)
 
+        hbox_align = QtGui.QHBoxLayout()
+        hbox_align.addWidget(alignButton)
+        hbox_align.addWidget(shiftButton)
+
+        alignButton.setFixedWidth(50)
+        shiftButton.setFixedWidth(50)
+
         vbox_align = QtGui.QVBoxLayout()
         vbox_align.addLayout(vbox_fname)
         vbox_align.addStretch(1)
-        vbox_align.addWidget(alignButton)
+        vbox_align.addLayout(hbox_align)
         vbox_align.addStretch(1)
         vbox_align.addWidget(warpButton)
 
@@ -279,7 +289,13 @@ class TriangulateWidget(QtGui.QWidget):
         hbox_holo = QtGui.QHBoxLayout()
         hbox_holo.addWidget(holo_no_ref_1_button)
         hbox_holo.addWidget(holo_no_ref_2_button)
+        hbox_holo.addWidget(holo_with_ref_2_button)
         hbox_holo.addWidget(holo_no_ref_3_button)
+
+        holo_no_ref_1_button.setFixedWidth(sum_button.width())
+        holo_no_ref_2_button.setFixedWidth(sum_button.width())
+        holo_with_ref_2_button.setFixedWidth(sum_button.width())
+        holo_no_ref_3_button.setFixedWidth(sum_button.width())
 
         hbox_calc = QtGui.QHBoxLayout()
         hbox_calc.addWidget(sum_button)
@@ -535,6 +551,8 @@ class TriangulateWidget(QtGui.QWidget):
         img1Rc = imsup.create_imgbuf_from_img(img1Rc)
         img2Rc = imsup.create_imgbuf_from_img(img2Rc)
 
+        self.shift = rcShift
+
         rotAngles = []
         for idx, p1, p2 in zip(range(n_points1), poly1, poly2):
             p1New = CalcNewCoords(p1, rotCenterAvg)
@@ -583,6 +601,19 @@ class TriangulateWidget(QtGui.QWidget):
         self.goToNextImage()
 
         print('Triangulation complete!')
+
+    def shift_from_last(self):
+        curr_img = self.display.image
+        shift = self.shift
+        bufSz = max([abs(x) for x in shift])
+        dirs = 'tblr'
+        padded_img = imsup.PadImage(curr_img, bufSz, 0.0, dirs)
+        print('wat1')
+        shifted_img = cc.shift_am_ph_image(padded_img, shift)
+        print('wat2')
+        shifted_img = imsup.create_imgbuf_from_img(shifted_img)
+        print('wat3')
+        self.insert_img_after_curr(shifted_img)
 
     def warp_image(self, more_accurate=False):
         curr_img = self.display.image
@@ -664,6 +695,36 @@ class TriangulateWidget(QtGui.QWidget):
         sband_img_ap = holo.rec_holo_no_ref_2(holo_fft, shift, ap_sz=aperture, N_hann=hann_window)
         self.log_scale_checkbox.setChecked(False)
         self.insert_img_after_curr(sband_img_ap)
+
+    def rec_holo_with_ref_2(self):
+        ref_fft = self.display.image
+        [pt1, pt2] = self.display.pointSets[ref_fft.numInSeries - 1][:2]
+        dpts = pt1 + pt2
+        rpts = CalcRealTLCoords(ref_fft.width, dpts)
+        rpt1 = rpts[:2]  # konwencja x, y
+        rpt2 = rpts[2:]
+
+        sband = np.copy(ref_fft.amPh.am[rpt1[1]:rpt2[1], rpt1[0]:rpt2[0]])  # konwencja y, x
+        sband_xy = holo.find_img_max(sband)  # konwencja y, x
+        sband_xy.reverse()
+
+        sband_xy = [px + sx for px, sx in zip(rpt1, sband_xy)]  # konwencja x, y
+
+        mid = ref_fft.width // 2
+        shift = [mid - sband_xy[1], mid - sband_xy[0]]  # konwencja x, y
+
+        aperture = int(self.aperture_input.text())
+        hann_window = int(self.hann_win_input.text())
+
+        ref_sband_ap = holo.rec_holo_no_ref_2(ref_fft, shift, ap_sz=aperture, N_hann=hann_window)
+
+        holo_img = self.display.image.next
+        holo_fft = holo.rec_holo_no_ref_1(holo_img)
+        holo_sband_ap = holo.rec_holo_no_ref_2(holo_fft, shift, ap_sz=aperture, N_hann=hann_window)
+
+        self.log_scale_checkbox.setChecked(False)
+        self.insert_img_after_curr(ref_sband_ap)
+        self.insert_img_after_curr(holo_sband_ap)
 
     def rec_holo_no_ref_3(self):
         sband_img = self.display.image
