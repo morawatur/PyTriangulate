@@ -68,6 +68,7 @@ class LabelExt(QtGui.QLabel):
 
     def setImage(self, dispAmp=True, logScale=False):
         self.image.MoveToCPU()
+
         if dispAmp:
             self.image.buffer = np.copy(self.image.amPh.am)
             if logScale:
@@ -77,6 +78,7 @@ class LabelExt(QtGui.QLabel):
 
         qImg = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
                             self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
+
         pixmap = QtGui.QPixmap(qImg)
         pixmap = pixmap.scaledToWidth(const.ccWidgetDim)
         self.setPixmap(pixmap)
@@ -89,6 +91,7 @@ class LabelExt(QtGui.QLabel):
 
         newImage.ReIm2AmPh()
         self.image = newImage
+
         if len(self.pointSets) < self.image.numInSeries:
             self.pointSets.append([])
         self.setImage(dispAmp, logScale)
@@ -608,12 +611,12 @@ class TriangulateWidget(QtGui.QWidget):
         bufSz = max([abs(x) for x in shift])
         dirs = 'tblr'
         padded_img = imsup.PadImage(curr_img, bufSz, 0.0, dirs)
-        print('wat1')
         shifted_img = cc.shift_am_ph_image(padded_img, shift)
-        print('wat2')
         shifted_img = imsup.create_imgbuf_from_img(shifted_img)
-        print('wat3')
-        self.insert_img_after_curr(shifted_img)
+
+        resc_factor = curr_img.width / padded_img.width
+        resc_img = tr.RescaleImageSki(shifted_img, resc_factor)
+        self.insert_img_after_curr(resc_img)
 
     def warp_image(self, more_accurate=False):
         curr_img = self.display.image
@@ -902,9 +905,10 @@ def CalcRotAngle(p1, p2):
     z2 = np.complex(p2[0], p2[1])
     phi1 = np.angle(z1)
     phi2 = np.angle(z2)
-    rotAngle = np.abs(imsup.Degrees(phi2 - phi1))
-    if rotAngle > 180:
-        rotAngle = 360 - rotAngle
+    # rotAngle = np.abs(imsup.Degrees(phi2 - phi1))
+    rotAngle = imsup.Degrees(phi2 - phi1)
+    if np.abs(rotAngle) > 180:
+        rotAngle = np.sign(rotAngle) * (360 - np.abs(rotAngle))
     return rotAngle
 
 # --------------------------------------------------------
