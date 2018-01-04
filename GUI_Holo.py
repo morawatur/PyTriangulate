@@ -125,6 +125,7 @@ class TriangulateWidget(QtGui.QWidget):
         image = LoadImageSeriesFromFirstFile(imagePath)
         self.display = LabelExt(self, image)
         self.shift = [0, 0]
+        self.rot_angle = 0
         self.initUI()
 
     def initUI(self):
@@ -133,6 +134,12 @@ class TriangulateWidget(QtGui.QWidget):
 
         prevButton.clicked.connect(self.goToPrevImage)
         nextButton.clicked.connect(self.goToNextImage)
+
+        lswap_button = QtGui.QPushButton('L-Swap', self)
+        rswap_button = QtGui.QPushButton('R-Swap', self)
+
+        lswap_button.clicked.connect(self.swap_left)
+        rswap_button.clicked.connect(self.swap_right)
 
         flipButton = QtGui.QPushButton('Flip', self)
         zoomButton = QtGui.QPushButton('Zoom', self)
@@ -148,13 +155,23 @@ class TriangulateWidget(QtGui.QWidget):
         deleteButton.clicked.connect(self.deleteImage)
         clearButton.clicked.connect(self.clearImage)
 
-        alignButton = QtGui.QPushButton('Align', self)
-        shiftButton = QtGui.QPushButton('Shift', self)
-        warpButton = QtGui.QPushButton('Warp', self)
+        self.shift_radio_button = QtGui.QRadioButton('Shift', self)
+        self.rot_radio_button = QtGui.QRadioButton('Rot', self)
+        self.shift_radio_button.setChecked(True)
 
-        alignButton.clicked.connect(self.triangulate)
-        shiftButton.clicked.connect(self.shift_from_last)
+        shift_rot_group = QtGui.QButtonGroup(self)
+        shift_rot_group.addButton(self.shift_radio_button)
+        shift_rot_group.addButton(self.rot_radio_button)
+
+        alignButton = QtGui.QPushButton('Align', self)
+        reshift_button = QtGui.QPushButton('Re-Shift', self)
+        warpButton = QtGui.QPushButton('Warp', self)
+        rerot_button = QtGui.QPushButton('Re-Rot', self)
+
+        alignButton.clicked.connect(self.align_images)
+        reshift_button.clicked.connect(self.reshift)
         warpButton.clicked.connect(partial(self.warp_image, False))
+        rerot_button.clicked.connect(self.rerotate)
 
         fname_label = QtGui.QLabel('File name', self)
         self.fname_input = QtGui.QLineEdit('img', self)
@@ -196,6 +213,10 @@ class TriangulateWidget(QtGui.QWidget):
         self.amp_radio_button.toggled.connect(self.update_display)
         self.phs_radio_button.toggled.connect(self.update_display)
 
+        amp_phs_group = QtGui.QButtonGroup(self)
+        amp_phs_group.addButton(self.amp_radio_button)
+        amp_phs_group.addButton(self.phs_radio_button)
+
         aperture_label = QtGui.QLabel('Aperture [px]', self)
         self.aperture_input = QtGui.QLineEdit(str(const.aperture), self)
         self.aperture_input.setFixedWidth(self.width() // 6)
@@ -224,6 +245,10 @@ class TriangulateWidget(QtGui.QWidget):
         hbox_nav.addWidget(prevButton)
         hbox_nav.addWidget(nextButton)
 
+        hbox_swap = QtGui.QHBoxLayout()
+        hbox_swap.addWidget(lswap_button)
+        hbox_swap.addWidget(rswap_button)
+
         hbox_modify = QtGui.QHBoxLayout()
         hbox_modify.addWidget(flipButton)
         hbox_modify.addWidget(zoomButton)
@@ -234,6 +259,8 @@ class TriangulateWidget(QtGui.QWidget):
 
         vbox_nav = QtGui.QVBoxLayout()
         vbox_nav.addLayout(hbox_nav)
+        vbox_nav.addStretch(1)
+        vbox_nav.addLayout(hbox_swap)
         vbox_nav.addStretch(1)
         vbox_nav.addLayout(hbox_modify)
         vbox_nav.addStretch(1)
@@ -246,9 +273,9 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_disp.addStretch(1)
         vbox_disp.addWidget(clearButton)
 
-        hbox_phsuw = QtGui.QHBoxLayout()
-        hbox_phsuw.addWidget(self.phs_unwrap_checkbox)
-        hbox_phsuw.addWidget(phs_uw_ok_button)
+        # hbox_phsuw = QtGui.QHBoxLayout()
+        # hbox_phsuw.addWidget(self.phs_unwrap_checkbox)
+        # hbox_phsuw.addWidget(phs_uw_ok_button)
 
         vbox_amph = QtGui.QVBoxLayout()
         vbox_amph.addWidget(self.amp_radio_button)
@@ -257,7 +284,13 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_amph.addStretch(1)
         vbox_amph.addWidget(self.log_scale_checkbox)
         vbox_amph.addStretch(1)
-        vbox_amph.addLayout(hbox_phsuw)
+        vbox_amph.addWidget(self.phs_unwrap_checkbox)
+
+        vbox_alg = QtGui.QVBoxLayout()
+        vbox_alg.addStretch(1)
+        vbox_alg.addWidget(self.shift_radio_button)
+        vbox_alg.addWidget(self.rot_radio_button)
+        vbox_alg.addWidget(phs_uw_ok_button)
 
         vbox_fname = QtGui.QVBoxLayout()
         vbox_fname.addWidget(fname_label)
@@ -265,17 +298,24 @@ class TriangulateWidget(QtGui.QWidget):
 
         hbox_align = QtGui.QHBoxLayout()
         hbox_align.addWidget(alignButton)
-        hbox_align.addWidget(shiftButton)
+        hbox_align.addWidget(reshift_button)
 
         alignButton.setFixedWidth(50)
-        shiftButton.setFixedWidth(50)
+        reshift_button.setFixedWidth(50)
+
+        hbox_warp = QtGui.QHBoxLayout()
+        hbox_warp.addWidget(warpButton)
+        hbox_warp.addWidget(rerot_button)
+
+        warpButton.setFixedWidth(50)
+        rerot_button.setFixedWidth(50)
 
         vbox_align = QtGui.QVBoxLayout()
         vbox_align.addLayout(vbox_fname)
         vbox_align.addStretch(1)
         vbox_align.addLayout(hbox_align)
         vbox_align.addStretch(1)
-        vbox_align.addWidget(warpButton)
+        vbox_align.addLayout(hbox_warp)
 
         vbox_aper = QtGui.QVBoxLayout()
         vbox_aper.addWidget(aperture_label)
@@ -319,6 +359,7 @@ class TriangulateWidget(QtGui.QWidget):
         hbox_panel.addLayout(vbox_nav)
         hbox_panel.addLayout(vbox_disp)
         hbox_panel.addLayout(vbox_amph)
+        hbox_panel.addLayout(vbox_alg)
         hbox_panel.addLayout(vbox_align)
         hbox_panel.addLayout(vbox_opt)
 
@@ -503,7 +544,13 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.pointSets[self.display.image.numInSeries - 1][:] = []
         self.display.repaint()
 
-    def triangulate(self):
+    def align_images(self):
+        if self.shift_radio_button.isChecked():
+            self.align_shift()
+        else:
+            self.align_rot()
+
+    def align_rot(self):
         curr_img = self.display.image
         curr_idx = curr_img.numInSeries - 1
         img_width = curr_img.width
@@ -554,8 +601,6 @@ class TriangulateWidget(QtGui.QWidget):
         img1Rc = imsup.create_imgbuf_from_img(img1Rc)
         img2Rc = imsup.create_imgbuf_from_img(img2Rc)
 
-        self.shift = rcShift
-
         rotAngles = []
         for idx, p1, p2 in zip(range(n_points1), poly1, poly2):
             p1New = CalcNewCoords(p1, rotCenterAvg)
@@ -579,6 +624,9 @@ class TriangulateWidget(QtGui.QWidget):
         # print('Average magnification = {0:.2f}x'.format(magAvg))
         print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
         # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
+
+        self.shift = rcShift
+        self.rot_angle = rotAngleAvg
 
         # img2Mag = tr.RescaleImageSki(img2Rc, magAvg)
         img2Rot = tr.RotateImageSki(img2Rc, rotAngleAvg)
@@ -605,18 +653,59 @@ class TriangulateWidget(QtGui.QWidget):
 
         print('Triangulation complete!')
 
-    def shift_from_last(self):
+    def align_shift(self):
+        curr_img = self.display.image
+        curr_idx = curr_img.numInSeries - 1
+        img_width = curr_img.width
+
+        points1 = self.display.pointSets[curr_idx - 1]
+        points2 = self.display.pointSets[curr_idx]
+        n_points1 = len(points1)
+        n_points2 = len(points2)
+
+        if n_points1 != n_points2:
+            print('Mark the same number of points on both images!')
+            return
+
+        set1 = [CalcRealCoords(img_width, pt1) for pt1 in points1]
+        set2 = [CalcRealCoords(img_width, pt2) for pt2 in points2]
+
+        shift_sum = np.zeros(2, dtype=np.int32)
+        for pt1, pt2 in zip(set1, set2):
+            shift = np.array(pt1) - np.array(pt2)
+            shift_sum += shift
+
+        shift_avg = list(shift_sum // n_points1)
+        self.shift = shift_avg
+
+        shifted_img2 = cc.shift_am_ph_image(curr_img, shift_avg)
+        shifted_img2 = imsup.create_imgbuf_from_img(shifted_img2)
+        self.insert_img_after_curr(shifted_img2)
+
+    def reshift(self):
         curr_img = self.display.image
         shift = self.shift
-        bufSz = max([abs(x) for x in shift])
-        dirs = 'tblr'
-        padded_img = imsup.PadImage(curr_img, bufSz, 0.0, dirs)
-        shifted_img = cc.shift_am_ph_image(padded_img, shift)
-        shifted_img = imsup.create_imgbuf_from_img(shifted_img)
 
-        resc_factor = curr_img.width / padded_img.width
-        resc_img = tr.RescaleImageSki(shifted_img, resc_factor)
-        self.insert_img_after_curr(resc_img)
+        if self.shift_radio_button.isChecked():
+            shifted_img = cc.shift_am_ph_image(curr_img, shift)
+            shifted_img = imsup.create_imgbuf_from_img(shifted_img)
+            self.insert_img_after_curr(shifted_img)
+        else:
+            bufSz = max([abs(x) for x in shift])
+            dirs = 'tblr'
+            padded_img = imsup.PadImage(curr_img, bufSz, 0.0, dirs)
+            shifted_img = cc.shift_am_ph_image(padded_img, shift)
+            shifted_img = imsup.create_imgbuf_from_img(shifted_img)
+
+            resc_factor = curr_img.width / padded_img.width
+            resc_img = tr.RescaleImageSki(shifted_img, resc_factor)
+            self.insert_img_after_curr(resc_img)
+
+    def rerotate(self):
+        curr_img = self.display.image
+        rot_angle = self.rot_angle
+        rotated_img = tr.RotateImageSki(curr_img, rot_angle)
+        self.insert_img_after_curr(rotated_img)
 
     def warp_image(self, more_accurate=False):
         curr_img = self.display.image
@@ -780,6 +869,44 @@ class TriangulateWidget(QtGui.QWidget):
         phs_amplified = imsup.copy_am_ph_image(curr_img)
         phs_amplified.amPh.ph = np.cos(amp_factor * curr_img.amPh.ph)
         self.insert_img_after_curr(phs_amplified)
+
+    def swap_left(self):
+        curr_img = self.display.image
+        if curr_img.prev is None:
+            return
+        curr_idx = curr_img.numInSeries - 1
+
+        first_img = imsup.GetFirstImage(curr_img)
+        imgs = imsup.CreateImageListFromFirstImage(first_img)
+        imgs[curr_idx-1], imgs[curr_idx] = imgs[curr_idx], imgs[curr_idx-1]
+
+        imgs[0].prev = None
+        imgs[len(imgs)-1].next = None
+        imgs[curr_idx-1].numInSeries = imgs[curr_idx].numInSeries
+        imgs.UpdateLinks()
+
+        ps = self.display.pointSets
+        ps[curr_idx-1], ps[curr_idx] = ps[curr_idx], ps[curr_idx-1]
+        self.goToNextImage()
+
+    def swap_right(self):
+        curr_img = self.display.image
+        if curr_img.next is None:
+            return
+        curr_idx = curr_img.numInSeries - 1
+
+        first_img = imsup.GetFirstImage(curr_img)
+        imgs = imsup.CreateImageListFromFirstImage(first_img)
+        imgs[curr_idx], imgs[curr_idx+1] = imgs[curr_idx+1], imgs[curr_idx]
+
+        imgs[0].prev = None
+        imgs[len(imgs)-1].next = None
+        imgs[curr_idx].numInSeries = imgs[curr_idx+1].numInSeries
+        imgs.UpdateLinks()
+
+        ps = self.display.pointSets
+        ps[curr_idx], ps[curr_idx+1] = ps[curr_idx+1], ps[curr_idx]
+        self.goToPrevImage()
 
 # --------------------------------------------------------
 

@@ -403,6 +403,20 @@ def CalcPartialCrossCorrFunUW(img1, img2, nDiv, fragCoords):
 
 # -------------------------------------------------------------------
 
+def align_images_simple(img1, img2):
+    common_coords = [0, 0, img1.height, img1.width]
+    ccf = CalcCrossCorrFun(img1, img2)
+    shift = GetShift(ccf)
+    shifted_img2 = shift_am_ph_image(img2, shift)
+    crop_coords = imsup.DetermineCropCoords(img2.height, img2.width, shift)
+    common_coords = imsup.GetCommonArea(common_coords, crop_coords)
+    square_coords = imsup.MakeSquareCoords(common_coords)
+    aligned_img1 = imsup.CropImageROICoords(img1, square_coords)
+    aligned_img2 = imsup.CropImageROICoords(shifted_img2, square_coords)
+    return aligned_img1, aligned_img2
+
+# -------------------------------------------------------------------
+
 # align whole images with defocus adjustment
 def AlignTwoImages(img1, img2, dfPars):
     commonCoords = [0, 0, img1.height, img1.width]
