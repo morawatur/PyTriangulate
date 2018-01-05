@@ -145,11 +145,16 @@ class TriangulateWidget(QtGui.QWidget):
         zoomButton = QtGui.QPushButton('Zoom', self)
 
         flipButton.clicked.connect(self.flip_image_h)
-        zoomButton.clicked.connect(self.zoom_two_fragments)
+        zoomButton.clicked.connect(self.zoom_n_fragments)
+
+        n_to_zoom_label = QtGui.QLabel('How many?', self)
+        self.n_to_zoom_input = QtGui.QLineEdit('1', self)
+        self.n_to_zoom_input.setFixedWidth(80)
 
         exportButton = QtGui.QPushButton('Export', self)
         deleteButton = QtGui.QPushButton('Delete', self)
         clearButton = QtGui.QPushButton('Clear', self)
+        clearButton.setFixedWidth(80)
 
         exportButton.clicked.connect(self.export_image)
         deleteButton.clicked.connect(self.deleteImage)
@@ -270,12 +275,10 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_disp.addWidget(self.show_lines_checkbox)
         vbox_disp.addStretch(1)
         vbox_disp.addWidget(self.show_labels_checkbox)
+        vbox_disp.addWidget(n_to_zoom_label)
+        vbox_disp.addWidget(self.n_to_zoom_input)
         vbox_disp.addStretch(1)
         vbox_disp.addWidget(clearButton)
-
-        # hbox_phsuw = QtGui.QHBoxLayout()
-        # hbox_phsuw.addWidget(self.phs_unwrap_checkbox)
-        # hbox_phsuw.addWidget(phs_uw_ok_button)
 
         vbox_amph = QtGui.QVBoxLayout()
         vbox_amph.addWidget(self.amp_radio_button)
@@ -512,7 +515,21 @@ class TriangulateWidget(QtGui.QWidget):
         curr_img.amPh.ph = np.copy(new_phs)
         self.update_display()
 
-    def zoom_two_fragments(self):
+    # def zoom_two_fragments(self):
+    #     curr_idx = self.display.image.numInSeries - 1
+    #     if len(self.display.pointSets[curr_idx]) < 2:
+    #         return
+    #
+    #     curr_img = self.display.image
+    #     [pt1, pt2] = self.display.pointSets[curr_idx][:2]
+    #     disp_crop_coords = pt1 + pt2
+    #     real_crop_coords = imsup.MakeSquareCoords(CalcRealTLCoords(curr_img.width, disp_crop_coords))
+    #
+    #     if curr_img.prev is not None:
+    #         zoom_fragment(curr_img.prev, real_crop_coords)
+    #     zoom_fragment(curr_img, real_crop_coords)
+
+    def zoom_n_fragments(self):
         curr_idx = self.display.image.numInSeries - 1
         if len(self.display.pointSets[curr_idx]) < 2:
             return
@@ -522,20 +539,17 @@ class TriangulateWidget(QtGui.QWidget):
         disp_crop_coords = pt1 + pt2
         real_crop_coords = imsup.MakeSquareCoords(CalcRealTLCoords(curr_img.width, disp_crop_coords))
 
-        if curr_img.prev is not None:
-            self.zoom_fragment(curr_img.prev, real_crop_coords)
-        self.zoom_fragment(curr_img, real_crop_coords)
+        n_to_zoom = np.int(self.n_to_zoom_input.text())
+        img_list = imsup.CreateImageListFromFirstImage(curr_img)
+        img_list2 = img_list[:n_to_zoom]
+        print(len(img_list2))
+        idx1 = curr_img.numInSeries + n_to_zoom
+        idx2 = idx1 + n_to_zoom
+        for img, n in zip(img_list2, range(idx1, idx2)):
+            frag = zoom_fragment(img, real_crop_coords)
+            img_list.insert(n, frag)
 
-    def zoom_fragment(self, img, coords):
-        crop_img = imsup.crop_am_ph_roi(img, coords)
-        crop_img = imsup.create_imgbuf_from_img(crop_img)
-        crop_img.MoveToCPU()
-
-        orig_width = img.width
-        crop_width = np.abs(coords[2] - coords[0])
-        zoom_factor = orig_width / crop_width
-        zoom_img = tr.RescaleImageSki(crop_img, zoom_factor)
-        self.insert_img_after_curr(zoom_img)
+        img_list.UpdateLinks()
 
     def clearImage(self):
         labToDel = self.display.children()
@@ -940,6 +954,20 @@ def LoadImageSeriesFromFirstFile(imgPath):
 
     imgList.UpdateLinks()
     return imgList[0]
+
+# --------------------------------------------------------
+
+def zoom_fragment(img, coords):
+    crop_img = imsup.crop_am_ph_roi(img, coords)
+    crop_img = imsup.create_imgbuf_from_img(crop_img)
+    crop_img.MoveToCPU()
+
+    orig_width = img.width
+    crop_width = np.abs(coords[2] - coords[0])
+    zoom_factor = orig_width / crop_width
+    zoom_img = tr.RescaleImageSki(crop_img, zoom_factor)
+    # self.insert_img_after_curr(zoom_img)
+    return zoom_img
 
 # --------------------------------------------------------
 
