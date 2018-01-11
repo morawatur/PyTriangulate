@@ -79,10 +79,10 @@ def rec_holo_no_ref_2(holo_fft, shift, ap_sz=const.aperture, N_hann=const.hann_w
     sband_mid_img = cc.ShiftImage(holo_fft, shift)
     holo_fft.MoveToCPU()
 
-    # imsup.SaveAmpImage(sband_mid_img, 'sband_am.png')
-    # imsup.SavePhaseImage(sband_mid_img, 'sband_ph.png')
-    sband_img_ap = mult_by_hann_window(sband_mid_img, N=N_hann)
-    sband_img_ap = insert_aperture(sband_img_ap, ap_sz)
+    sband_img_ap = insert_aperture(sband_mid_img, ap_sz)
+    sband_img_ap = mult_by_hann_window(sband_img_ap, N=N_hann)
+    imsup.SaveAmpImage(sband_img_ap, 'sband_am.png')
+    imsup.SavePhaseImage(sband_img_ap, 'sband_ph.png')
     return sband_img_ap
 
 #-------------------------------------------------------------------

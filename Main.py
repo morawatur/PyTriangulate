@@ -6,12 +6,15 @@ dev = cuda.get_current_device()
 print('CUDA device in use: ' + dev.name.decode())
 
 # Potrzebne jeszcze:
-# - wziac pod uwage znak kata obrotu miedzy obrazami (kolejnosc obrazow ma znaczenie)
-# - flip nie dziala na faze
-# - shift dowolnego obrazu na podstawie wyznaczonego wczesniej przesuniecia
-
-# juz wiem, co bylo nie tak - winna jest konwersja z re_im do am_ph, ktora znowu powoduje wrapping fazy
-# - funkcje polar i rect z cmath dzialaja zle na GPU, jezeli faza przekracza 2pi
+# - znak kata obrotu nie zawsze jest poprawny
+# - flip nie dziala na amplitude (?)
+# - zrobic re-warp tak samo jak re-shift i re-rotate
 # - kontrola jasnosci, gammy i kontrastu
 
 gui.RunTriangulationWindow()
+
+# juz wiem, co bylo nie tak - winna byla konwersja z re_im do am_ph, ktora powoduje wrapping fazy
+# - funkcje polar i rect z cmath dzialaja zle na GPU, jezeli faza przekracza 2pi
+
+# reshift powoduje, ze mozna zoomowac obrazy fazowe (przed reshiftem cos nie dziala)
+# prawdopodobnie w trakcie reshifta nastepuje zmiana typu Image na ImageWithBuffer
