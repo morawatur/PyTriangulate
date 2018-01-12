@@ -12,10 +12,10 @@ import CrossCorr as cc
 import Transform as tr
 import Holo as holo
 
-# --------------------------------------------------------
-
-class Triangle:
-    pass
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
+import matplotlib.pyplot as plt
+import random
 
 # --------------------------------------------------------
 
@@ -118,17 +118,57 @@ class LabelExt(QtGui.QLabel):
 
 # --------------------------------------------------------
 
+class PlotWidget(QtGui.QWidget):
+    def __init__(self, parent=None):
+        super(PlotWidget, self).__init__(parent)
+        self.figure = plt.figure()
+        self.canvas = FigureCanvas(self.figure)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+        self.markedPoint = None
+        self.markedPointData = [0, 0]
+        self.canvas.mpl_connect('button_press_event', self.getXYDataOnClick)
+
+        # self.button = QtGui.QPushButton('Plot FFT')
+        # self.button.clicked.connect(self.plotRandom)
+
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.canvas)
+        # layout.addWidget(self.button)
+        self.setLayout(layout)
+
+    def plot(self, dataX, dataY, xlab='x', ylab='y'):
+        self.figure.clear()
+        self.markedPoint = None
+        plt.xlabel(xlab)
+        plt.ylabel(ylab)
+        plt.axis([ min(dataX)-0.5, max(dataX)+0.5, min(dataY)-0.5, max(dataY)+0.5 ])
+        ax = self.figure.add_subplot(111)
+        ax.plot(dataX, dataY, '.-')
+        self.canvas.draw()
+
+    def getXYDataOnClick(self, event):
+        if self.markedPoint is not None:
+            self.markedPoint.remove()
+        self.markedPoint, = plt.plot(event.xdata, event.ydata, 'ro')
+        self.markedPointData = [event.xdata, event.ydata]
+
+# --------------------------------------------------------
+
 class TriangulateWidget(QtGui.QWidget):
     def __init__(self):
         super(TriangulateWidget, self).__init__()
         imagePath = QtGui.QFileDialog.getOpenFileName()
         image = LoadImageSeriesFromFirstFile(imagePath)
         self.display = LabelExt(self, image)
+        self.plot_widget = PlotWidget()
         self.shift = [0, 0]
         self.rot_angle = 0
         self.initUI()
 
     def initUI(self):
+        self.plot_widget.canvas.setFixedHeight(150)
+
         prevButton = QtGui.QPushButton('Prev', self)
         nextButton = QtGui.QPushButton('Next', self)
 
@@ -246,6 +286,9 @@ class TriangulateWidget(QtGui.QWidget):
         amplify_button.clicked.connect(self.amplify_phase)
         amplify_button.setFixedWidth(60)
 
+        plot_button = QtGui.QPushButton('Plot', self)
+        plot_button.clicked.connect(self.plot_profile)
+
         hbox_nav = QtGui.QHBoxLayout()
         hbox_nav.addWidget(prevButton)
         hbox_nav.addWidget(nextButton)
@@ -355,6 +398,8 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_opt.addLayout(hbox_holo)
         vbox_opt.addStretch(1)
         vbox_opt.addLayout(hbox_calc)
+        vbox_opt.addStretch(1)
+        vbox_opt.addWidget(plot_button)
         # vbox_opt.addStretch(1)
         # vbox_opt.addWidget(holo_with_ref_button)
 
@@ -369,6 +414,7 @@ class TriangulateWidget(QtGui.QWidget):
         vbox_main = QtGui.QVBoxLayout()
         vbox_main.addWidget(self.display)
         vbox_main.addLayout(hbox_panel)
+        vbox_main.addWidget(self.plot_widget)
         self.setLayout(vbox_main)
 
         self.move(250, 5)
@@ -921,6 +967,36 @@ class TriangulateWidget(QtGui.QWidget):
         ps = self.display.pointSets
         ps[curr_idx], ps[curr_idx+1] = ps[curr_idx+1], ps[curr_idx]
         self.goToPrevImage()
+
+    def plot_profile(self):
+        curr_img = self.display.image
+        curr_idx = curr_img.numInSeries - 1
+        px_sz = curr_img.px_dim
+        p1, p2 = self.display.pointSets[curr_idx][:2]
+        p1 = CalcRealCoords(curr_img.width, p1)
+        p2 = CalcRealCoords(curr_img.width, p2)
+
+        x1, x2 = min(p1[0], p2[0]), max(p1[0], p2[0])
+        y1, y2 = min(p1[1], p2[1]), max(p1[1], p2[1])
+        x_dist = x2 - x1
+        y_dist = y2 - y1
+
+        if x_dist > y_dist:
+            x_range = list(range(x1, x2))
+            a_coeff = (p2[1] - p1[1]) / (p2[0] - p1[0])
+            b_coeff = p1[1] - a_coeff * p1[0]
+            y_range = [ int(a_coeff * x + b_coeff) for x in x_range ]
+        else:
+            y_range = list(range(y1, y2))
+            a_coeff = (p2[0] - p1[0]) / (p2[1] - p1[1])
+            b_coeff = p1[0] - a_coeff * p1[1]
+            x_range = [ int(a_coeff * y + b_coeff) for y in y_range ]
+
+        print(len(x_range), len(y_range))
+        profile = curr_img.amPh.am[x_range, y_range]
+        dists = np.arange(0, profile.shape[0], 1) * px_sz
+        dists *= 1e9
+        self.plot_widget.plot(dists, profile, 'Distance [nm]', 'Intensity [a.u.]')
 
 # --------------------------------------------------------
 
