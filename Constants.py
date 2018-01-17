@@ -22,3 +22,5 @@ ccfMaxName = 'ccfmax'
 
 aperture = 32
 hann_win = 100
+
+planck_const = 6.582119514e-16      # eV * s

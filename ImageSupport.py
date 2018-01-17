@@ -375,6 +375,20 @@ def crop_am_ph_roi(img, coords):
 
 # -------------------------------------------------------------------
 
+def crop_am_ph_roi_cpu(img, coords):
+    img.MoveToCPU()
+
+    roi_h = coords[3] - coords[1]
+    roi_w = coords[2] - coords[0]
+    roi = ImageWithBuffer(roi_h, roi_w, img.cmpRepr, img.memType)
+
+    roi.amPh.am[:] = img.amPh.am[coords[1]:coords[3], coords[0]:coords[2]]
+    roi.amPh.ph[:] = img.amPh.ph[coords[1]:coords[3], coords[0]:coords[2]]
+    roi.UpdateBuffer()
+    return roi
+
+# -------------------------------------------------------------------
+
 def CropImageROICoords(img, coords):
     roiHeight = coords[3] - coords[1]
     roiWidth = coords[2] - coords[0]
@@ -575,6 +589,14 @@ def DetermineCropCoords(width, height, shift):
 def DetermineCropCoordsForNewWidth(oldWidth, newWidth):
     origX = (oldWidth - newWidth) // 2
     cropCoords = [ origX ] * 2 + [ origX + newWidth ] * 2
+    return cropCoords
+
+#-------------------------------------------------------------------
+
+def DetermineCropCoordsForNewDims(oldWidth, oldHeight, newWidth, newHeight):
+    origX = (oldWidth - newWidth) // 2
+    origY = (oldHeight - newHeight) // 2
+    cropCoords = [ origX, origY, origX + newWidth, origY + newHeight ]
     return cropCoords
 
 #-------------------------------------------------------------------

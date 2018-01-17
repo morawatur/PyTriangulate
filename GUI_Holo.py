@@ -124,22 +124,19 @@ class PlotWidget(QtGui.QWidget):
         self.figure = plt.figure()
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, self)
-        self.markedPoint = None
-        self.markedPointData = [0, 0]
+        self.markedPoints = []
+        self.markedPointsData = []
         self.canvas.mpl_connect('button_press_event', self.getXYDataOnClick)
-
-        # self.button = QtGui.QPushButton('Plot FFT')
-        # self.button.clicked.connect(self.plotRandom)
 
         layout = QtGui.QVBoxLayout()
         layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
-        # layout.addWidget(self.button)
         self.setLayout(layout)
 
     def plot(self, dataX, dataY, xlab='x', ylab='y'):
         self.figure.clear()
-        self.markedPoint = None
+        self.markedPoints = []
+        self.markedPointsData = []
         plt.xlabel(xlab)
         plt.ylabel(ylab)
         plt.axis([ min(dataX)-0.5, max(dataX)+0.5, min(dataY)-0.5, max(dataY)+0.5 ])
@@ -148,10 +145,14 @@ class PlotWidget(QtGui.QWidget):
         self.canvas.draw()
 
     def getXYDataOnClick(self, event):
-        if self.markedPoint is not None:
-            self.markedPoint.remove()
-        self.markedPoint, = plt.plot(event.xdata, event.ydata, 'ro')
-        self.markedPointData = [event.xdata, event.ydata]
+        if len(self.markedPoints) == 2:
+            for pt in self.markedPoints:
+                pt.remove()
+            self.markedPoints = []
+            self.markedPointsData = []
+        pt, = plt.plot(event.xdata, event.ydata, 'ro')
+        self.markedPoints.append(pt)
+        self.markedPointsData.append([event.xdata, event.ydata])
 
 # --------------------------------------------------------
 
@@ -167,7 +168,7 @@ class TriangulateWidget(QtGui.QWidget):
         self.initUI()
 
     def initUI(self):
-        self.plot_widget.canvas.setFixedHeight(150)
+        self.plot_widget.canvas.setFixedHeight(250)
 
         prevButton = QtGui.QPushButton('Prev', self)
         nextButton = QtGui.QPushButton('Next', self)
@@ -189,12 +190,10 @@ class TriangulateWidget(QtGui.QWidget):
 
         n_to_zoom_label = QtGui.QLabel('How many?', self)
         self.n_to_zoom_input = QtGui.QLineEdit('1', self)
-        self.n_to_zoom_input.setFixedWidth(80)
 
         exportButton = QtGui.QPushButton('Export', self)
         deleteButton = QtGui.QPushButton('Delete', self)
         clearButton = QtGui.QPushButton('Clear', self)
-        clearButton.setFixedWidth(80)
 
         exportButton.clicked.connect(self.export_image)
         deleteButton.clicked.connect(self.deleteImage)
@@ -220,7 +219,6 @@ class TriangulateWidget(QtGui.QWidget):
 
         fname_label = QtGui.QLabel('File name', self)
         self.fname_input = QtGui.QLineEdit('img', self)
-        self.fname_input.setFixedWidth(self.width() // 6)
 
         holo_no_ref_1_button = QtGui.QPushButton('FFT', self)
         holo_no_ref_2_button = QtGui.QPushButton('Holo', self)
@@ -248,7 +246,6 @@ class TriangulateWidget(QtGui.QWidget):
         self.phs_unwrap_checkbox.setChecked(False)
 
         phs_uw_ok_button = QtGui.QPushButton('OK', self)
-        phs_uw_ok_button.setFixedWidth(40)
         phs_uw_ok_button.clicked.connect(self.unwrap_img_phase)
 
         self.amp_radio_button = QtGui.QRadioButton('Amplitude', self)
@@ -264,11 +261,9 @@ class TriangulateWidget(QtGui.QWidget):
 
         aperture_label = QtGui.QLabel('Aperture [px]', self)
         self.aperture_input = QtGui.QLineEdit(str(const.aperture), self)
-        self.aperture_input.setFixedWidth(self.width() // 6)
 
         hann_win_label = QtGui.QLabel('Hann window [px]', self)
         self.hann_win_input = QtGui.QLineEdit(str(const.hann_win), self)
-        self.hann_win_input.setFixedWidth(self.width() // 6)
 
         sum_button = QtGui.QPushButton('Sum', self)
         diff_button = QtGui.QPushButton('Diff', self)
@@ -276,143 +271,97 @@ class TriangulateWidget(QtGui.QWidget):
         sum_button.clicked.connect(self.calc_phs_sum)
         diff_button.clicked.connect(self.calc_phs_diff)
 
-        sum_button.setFixedWidth(60)
-        diff_button.setFixedWidth(60)
-
         self.amp_factor_input = QtGui.QLineEdit('2.0', self)
-        self.amp_factor_input.setFixedWidth(60)
 
         amplify_button = QtGui.QPushButton('Amplify', self)
         amplify_button.clicked.connect(self.amplify_phase)
-        amplify_button.setFixedWidth(60)
 
-        plot_button = QtGui.QPushButton('Plot', self)
+        int_width_label = QtGui.QLabel('Profile width', self)
+        self.int_width_input = QtGui.QLineEdit('1', self)
+
+        plot_button = QtGui.QPushButton('Plot profile', self)
         plot_button.clicked.connect(self.plot_profile)
 
-        hbox_nav = QtGui.QHBoxLayout()
-        hbox_nav.addWidget(prevButton)
-        hbox_nav.addWidget(nextButton)
+        sample_thick_label = QtGui.QLabel('Sample thickness [nm]', self)
+        self.sample_thick_input = QtGui.QLineEdit('30', self)
 
-        hbox_swap = QtGui.QHBoxLayout()
-        hbox_swap.addWidget(lswap_button)
-        hbox_swap.addWidget(rswap_button)
+        calc_B_button = QtGui.QPushButton('Calculate B', self)
+        calc_B_button.clicked.connect(self.calc_magnetic_field)
 
-        hbox_modify = QtGui.QHBoxLayout()
-        hbox_modify.addWidget(flipButton)
-        hbox_modify.addWidget(zoomButton)
+        grid_nav = QtGui.QGridLayout()
+        grid_nav.addWidget(prevButton, 1, 1)
+        grid_nav.addWidget(nextButton, 1, 2)
+        grid_nav.addWidget(lswap_button, 2, 1)
+        grid_nav.addWidget(rswap_button, 2, 2)
+        grid_nav.addWidget(flipButton, 3, 1)
+        grid_nav.addWidget(clearButton, 3, 2)
+        grid_nav.addWidget(exportButton, 4, 1)
+        grid_nav.addWidget(deleteButton, 4, 2)
 
-        hbox_imgop = QtGui.QHBoxLayout()
-        hbox_imgop.addWidget(exportButton)
-        hbox_imgop.addWidget(deleteButton)
+        grid_disp = QtGui.QGridLayout()
+        grid_disp.addWidget(n_to_zoom_label, 1, 2)
+        grid_disp.addWidget(self.n_to_zoom_input, 2, 2)
+        grid_disp.addWidget(zoomButton, 2, 1)
+        grid_disp.addWidget(self.show_lines_checkbox, 3, 1)
+        grid_disp.addWidget(self.show_labels_checkbox, 4, 1)
+        grid_disp.addWidget(self.log_scale_checkbox, 5, 1)
+        grid_disp.addWidget(self.amp_radio_button, 3, 2)
+        grid_disp.addWidget(self.phs_radio_button, 4, 2)
+        grid_disp.addWidget(self.phs_unwrap_checkbox, 5, 2)
+        grid_disp.addWidget(phs_uw_ok_button, 5, 3)
+        self.n_to_zoom_input.setFixedWidth(120)
 
-        vbox_nav = QtGui.QVBoxLayout()
-        vbox_nav.addLayout(hbox_nav)
-        vbox_nav.addStretch(1)
-        vbox_nav.addLayout(hbox_swap)
-        vbox_nav.addStretch(1)
-        vbox_nav.addLayout(hbox_modify)
-        vbox_nav.addStretch(1)
-        vbox_nav.addLayout(hbox_imgop)
+        grid_align = QtGui.QGridLayout()
+        grid_align.addWidget(self.shift_radio_button, 1, 1)
+        grid_align.addWidget(self.rot_radio_button, 2, 1)
+        grid_align.addWidget(alignButton, 1, 2)
+        grid_align.addWidget(warpButton, 2, 2)
+        grid_align.addWidget(reshift_button, 1, 3)
+        grid_align.addWidget(rerot_button, 2, 3)
 
-        vbox_disp = QtGui.QVBoxLayout()
-        vbox_disp.addWidget(self.show_lines_checkbox)
-        vbox_disp.addStretch(1)
-        vbox_disp.addWidget(self.show_labels_checkbox)
-        vbox_disp.addWidget(n_to_zoom_label)
-        vbox_disp.addWidget(self.n_to_zoom_input)
-        vbox_disp.addStretch(1)
-        vbox_disp.addWidget(clearButton)
+        grid_holo = QtGui.QGridLayout()
+        grid_holo.addWidget(fname_label, 1, 1)
+        grid_holo.addWidget(self.fname_input, 2, 1)
+        grid_holo.addWidget(aperture_label, 1, 2)
+        grid_holo.addWidget(self.aperture_input, 2, 2)
+        grid_holo.addWidget(hann_win_label, 1, 3)
+        grid_holo.addWidget(self.hann_win_input, 2, 3)
+        grid_holo.addWidget(holo_no_ref_1_button, 3, 1)
+        grid_holo.addWidget(holo_no_ref_2_button, 3, 2)
+        grid_holo.addWidget(holo_with_ref_2_button, 3, 3)
+        grid_holo.addWidget(holo_no_ref_3_button, 3, 4)
+        grid_holo.addWidget(sum_button, 4, 1)
+        grid_holo.addWidget(diff_button, 4, 2)
+        grid_holo.addWidget(self.amp_factor_input, 4, 3)
+        grid_holo.addWidget(amplify_button, 4, 4)
 
-        vbox_amph = QtGui.QVBoxLayout()
-        vbox_amph.addWidget(self.amp_radio_button)
-        vbox_amph.addStretch(1)
-        vbox_amph.addWidget(self.phs_radio_button)
-        vbox_amph.addStretch(1)
-        vbox_amph.addWidget(self.log_scale_checkbox)
-        vbox_amph.addStretch(1)
-        vbox_amph.addWidget(self.phs_unwrap_checkbox)
+        grid_plot = QtGui.QGridLayout()
+        grid_plot.addWidget(int_width_label, 1, 1)
+        grid_plot.addWidget(self.int_width_input, 2, 1)
+        grid_plot.addWidget(sample_thick_label, 1, 2)
+        grid_plot.addWidget(self.sample_thick_input, 2, 2)
+        grid_plot.addWidget(plot_button, 3, 1)
+        grid_plot.addWidget(calc_B_button, 3, 2)
 
-        vbox_alg = QtGui.QVBoxLayout()
-        vbox_alg.addStretch(1)
-        vbox_alg.addWidget(self.shift_radio_button)
-        vbox_alg.addWidget(self.rot_radio_button)
-        vbox_alg.addWidget(phs_uw_ok_button)
+        self.int_width_input.setFixedWidth(120)
+        self.sample_thick_input.setFixedWidth(120)
 
-        vbox_fname = QtGui.QVBoxLayout()
-        vbox_fname.addWidget(fname_label)
-        vbox_fname.addWidget(self.fname_input)
-
-        hbox_align = QtGui.QHBoxLayout()
-        hbox_align.addWidget(alignButton)
-        hbox_align.addWidget(reshift_button)
-
-        alignButton.setFixedWidth(50)
-        reshift_button.setFixedWidth(50)
-
-        hbox_warp = QtGui.QHBoxLayout()
-        hbox_warp.addWidget(warpButton)
-        hbox_warp.addWidget(rerot_button)
-
-        warpButton.setFixedWidth(50)
-        rerot_button.setFixedWidth(50)
-
-        vbox_align = QtGui.QVBoxLayout()
-        vbox_align.addLayout(vbox_fname)
-        vbox_align.addStretch(1)
-        vbox_align.addLayout(hbox_align)
-        vbox_align.addStretch(1)
-        vbox_align.addLayout(hbox_warp)
-
-        vbox_aper = QtGui.QVBoxLayout()
-        vbox_aper.addWidget(aperture_label)
-        vbox_aper.addWidget(self.aperture_input)
-
-        vbox_hann = QtGui.QVBoxLayout()
-        vbox_hann.addWidget(hann_win_label)
-        vbox_hann.addWidget(self.hann_win_input)
-
-        hbox_pars = QtGui.QHBoxLayout()
-        hbox_pars.addLayout(vbox_aper)
-        hbox_pars.addLayout(vbox_hann)
-
-        hbox_holo = QtGui.QHBoxLayout()
-        hbox_holo.addWidget(holo_no_ref_1_button)
-        hbox_holo.addWidget(holo_no_ref_2_button)
-        hbox_holo.addWidget(holo_with_ref_2_button)
-        hbox_holo.addWidget(holo_no_ref_3_button)
-
-        holo_no_ref_1_button.setFixedWidth(sum_button.width())
-        holo_no_ref_2_button.setFixedWidth(sum_button.width())
-        holo_with_ref_2_button.setFixedWidth(sum_button.width())
-        holo_no_ref_3_button.setFixedWidth(sum_button.width())
-
-        hbox_calc = QtGui.QHBoxLayout()
-        hbox_calc.addWidget(sum_button)
-        hbox_calc.addWidget(diff_button)
-        hbox_calc.addWidget(self.amp_factor_input)
-        hbox_calc.addWidget(amplify_button)
-
-        vbox_opt = QtGui.QVBoxLayout()
-        vbox_opt.addLayout(hbox_pars)
-        vbox_opt.addStretch(1)
-        vbox_opt.addLayout(hbox_holo)
-        vbox_opt.addStretch(1)
-        vbox_opt.addLayout(hbox_calc)
-        vbox_opt.addStretch(1)
-        vbox_opt.addWidget(plot_button)
-        # vbox_opt.addStretch(1)
-        # vbox_opt.addWidget(holo_with_ref_button)
+        vbox_panel = QtGui.QVBoxLayout()
+        vbox_panel.addLayout(grid_nav)
+        vbox_panel.addStretch(1)
+        vbox_panel.addLayout(grid_disp)
+        vbox_panel.addStretch(1)
+        vbox_panel.addLayout(grid_align)
+        vbox_panel.addStretch(1)
+        vbox_panel.addLayout(grid_holo)
+        vbox_panel.addStretch(1)
+        vbox_panel.addLayout(grid_plot)
 
         hbox_panel = QtGui.QHBoxLayout()
-        hbox_panel.addLayout(vbox_nav)
-        hbox_panel.addLayout(vbox_disp)
-        hbox_panel.addLayout(vbox_amph)
-        hbox_panel.addLayout(vbox_alg)
-        hbox_panel.addLayout(vbox_align)
-        hbox_panel.addLayout(vbox_opt)
+        hbox_panel.addWidget(self.display)
+        hbox_panel.addLayout(vbox_panel)
 
         vbox_main = QtGui.QVBoxLayout()
-        vbox_main.addWidget(self.display)
         vbox_main.addLayout(hbox_panel)
         vbox_main.addWidget(self.plot_widget)
         self.setLayout(vbox_main)
@@ -972,31 +921,94 @@ class TriangulateWidget(QtGui.QWidget):
         curr_img = self.display.image
         curr_idx = curr_img.numInSeries - 1
         px_sz = curr_img.px_dim
-        p1, p2 = self.display.pointSets[curr_idx][:2]
-        p1 = CalcRealCoords(curr_img.width, p1)
-        p2 = CalcRealCoords(curr_img.width, p2)
+        print(px_sz)
+        points = self.display.pointSets[curr_idx][:2]
+        points = np.array([ CalcRealCoords(curr_img.width, pt) for pt in points ])
 
-        x1, x2 = min(p1[0], p2[0]), max(p1[0], p2[0])
-        y1, y2 = min(p1[1], p2[1]), max(p1[1], p2[1])
-        x_dist = x2 - x1
-        y_dist = y2 - y1
+        # find rotation center (center of the line)
+        rot_center = np.average(points, 0).astype(np.int32)
+        print('rotCenter = {0}'.format(rot_center))
 
-        if x_dist > y_dist:
-            x_range = list(range(x1, x2))
-            a_coeff = (p2[1] - p1[1]) / (p2[0] - p1[0])
-            b_coeff = p1[1] - a_coeff * p1[0]
-            y_range = [ int(a_coeff * x + b_coeff) for x in x_range ]
+        # find direction (angle) of the line
+        dir_info = FindDirectionAngles(points[0], points[1])
+        dir_angle = imsup.Degrees(dir_info[0])
+        proj_dir = dir_info[2]
+        print('dir angle = {0:.2f} deg'.format(dir_angle))
+
+        # shift image by -center
+        shift_to_rot_center = list(-rot_center)
+        shift_to_rot_center.reverse()
+        img_shifted = cc.shift_am_ph_image(curr_img, shift_to_rot_center)
+
+        # rotate image by angle
+        img_rot = tr.RotateImageSki(img_shifted, dir_angle)
+
+        # crop fragment (height = distance between two points)
+        pt_diffs = points[0] - points[1]
+        frag_dim1 = int(np.sqrt(pt_diffs[0] ** 2 + pt_diffs[1] ** 2))
+        frag_dim2 = int(self.int_width_input.text())
+
+        if proj_dir == 0:
+            frag_width, frag_height = frag_dim1, frag_dim2
         else:
-            y_range = list(range(y1, y2))
-            a_coeff = (p2[0] - p1[0]) / (p2[1] - p1[1])
-            b_coeff = p1[0] - a_coeff * p1[1]
-            x_range = [ int(a_coeff * y + b_coeff) for y in y_range ]
+            frag_width, frag_height = frag_dim2, frag_dim1
 
-        print(len(x_range), len(y_range))
-        profile = curr_img.amPh.am[x_range, y_range]
-        dists = np.arange(0, profile.shape[0], 1) * px_sz
+        frag_coords = imsup.DetermineCropCoordsForNewDims(img_rot.width, img_rot.height, frag_width, frag_height)
+        print('Frag dims = {0}, {1}'.format(frag_width, frag_height))
+        print('Frag coords = {0}'.format(frag_coords))
+        img_cropped = imsup.crop_am_ph_roi_cpu(img_rot, frag_coords)
+
+        # calculate projection of intensity
+        if self.amp_radio_button.isChecked():
+            int_matrix = np.copy(img_cropped.amPh.am)
+        else:
+            ph_min = np.min(img_cropped.amPh.ph)
+            ph_fix = -ph_min if ph_min < 0 else 0
+            img_cropped.amPh.ph += ph_fix
+            int_matrix = np.copy(img_cropped.amPh.ph)
+        int_profile = np.sum(int_matrix, proj_dir)  # 0 - horizontal projection, 1 - vertical projection
+        dists = np.arange(0, int_profile.shape[0], 1) * px_sz
         dists *= 1e9
-        self.plot_widget.plot(dists, profile, 'Distance [nm]', 'Intensity [a.u.]')
+
+        self.plot_widget.plot(dists, int_profile, 'Distance [nm]', 'Intensity [a.u.]')
+
+    def calc_magnetic_field(self):
+        pt1, pt2 = self.plot_widget.markedPointsData
+        d_dist = np.abs(pt1[0] - pt2[0]) * 1e-9
+        d_phase = np.abs(pt1[1] - pt2[1])
+        sample_thickness = float(self.sample_thick_input.text()) * 1e-9
+        B_in_plane = (const.planck_const / sample_thickness) * (d_phase / d_dist)
+        print('B = {0:.2f} T'.format(B_in_plane))
+
+    # def plot_profile(self):
+    #     curr_img = self.display.image
+    #     curr_idx = curr_img.numInSeries - 1
+    #     px_sz = curr_img.px_dim
+    #     p1, p2 = self.display.pointSets[curr_idx][:2]
+    #     p1 = CalcRealCoords(curr_img.width, p1)
+    #     p2 = CalcRealCoords(curr_img.width, p2)
+    #
+    #     x1, x2 = min(p1[0], p2[0]), max(p1[0], p2[0])
+    #     y1, y2 = min(p1[1], p2[1]), max(p1[1], p2[1])
+    #     x_dist = x2 - x1
+    #     y_dist = y2 - y1
+    #
+    #     if x_dist > y_dist:
+    #         x_range = list(range(x1, x2))
+    #         a_coeff = (p2[1] - p1[1]) / (p2[0] - p1[0])
+    #         b_coeff = p1[1] - a_coeff * p1[0]
+    #         y_range = [ int(a_coeff * x + b_coeff) for x in x_range ]
+    #     else:
+    #         y_range = list(range(y1, y2))
+    #         a_coeff = (p2[0] - p1[0]) / (p2[1] - p1[1])
+    #         b_coeff = p1[0] - a_coeff * p1[1]
+    #         x_range = [ int(a_coeff * y + b_coeff) for y in y_range ]
+    #
+    #     print(len(x_range), len(y_range))
+    #     profile = curr_img.amPh.am[x_range, y_range]
+    #     dists = np.arange(0, profile.shape[0], 1) * px_sz
+    #     dists *= 1e9
+    #     self.plot_widget.plot(dists, profile, 'Distance [nm]', 'Intensity [a.u.]')
 
 # --------------------------------------------------------
 
@@ -1044,6 +1056,26 @@ def zoom_fragment(img, coords):
     zoom_img = tr.RescaleImageSki(crop_img, zoom_factor)
     # self.insert_img_after_curr(zoom_img)
     return zoom_img
+
+# --------------------------------------------------------
+
+def FindDirectionAngles(p1, p2):
+    lpt = p1[:] if p1[0] < p2[0] else p2[:]     # left point
+    rpt = p1[:] if p1[0] > p2[0] else p2[:]     # right point
+    dx = np.abs(rpt[0] - lpt[0])
+    dy = np.abs(rpt[1] - lpt[1])
+    sign = 1 if rpt[1] < lpt[1] else -1
+    projDir = 1         # projection on y axis
+    if dx > dy:
+        sign *= -1
+        projDir = 0     # projection on x axis
+    diff1 = dx if dx < dy else dy
+    diff2 = dx if dx > dy else dy
+    ang1 = np.arctan2(diff1, diff2)
+    ang2 = np.pi / 2 - ang1
+    ang1 *= sign
+    ang2 *= (-sign)
+    return ang1, ang2, projDir
 
 # --------------------------------------------------------
 
