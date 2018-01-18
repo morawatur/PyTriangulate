@@ -6,6 +6,7 @@ dev = cuda.get_current_device()
 print('CUDA device in use: ' + dev.name.decode())
 
 # Potrzebne jeszcze:
+# - podczas zoomowania obrazu powinienem zmieniac zapisana wartosc wielkosci piksela
 # - znak kata obrotu nie zawsze jest poprawny
 # - flip nie dziala na amplitude (?)
 # - zrobic re-warp tak samo jak re-shift i re-rotate

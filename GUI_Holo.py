@@ -15,7 +15,6 @@ import Holo as holo
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
-import random
 
 # --------------------------------------------------------
 
@@ -66,7 +65,7 @@ class LabelExt(QtGui.QLabel):
             lab.move(pos.x()+4, pos.y()+4)
             lab.show()
 
-    def setImage(self, dispAmp=True, logScale=False):
+    def setImage(self, dispAmp=True, logScale=False, color=False):
         self.image.MoveToCPU()
 
         if dispAmp:
@@ -76,15 +75,23 @@ class LabelExt(QtGui.QLabel):
         else:
             self.image.buffer = np.copy(self.image.amPh.ph)
 
-        qImg = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
-                            self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
+        q_image = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
+                               self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
 
-        pixmap = QtGui.QPixmap(qImg)
+        if color:
+            step = 3
+            bcm = [ QtGui.qRgb(0, i, j) for i, j in zip(np.arange(0, 256, step), np.arange(255, -1, -step)) ]
+            gcm = [ QtGui.qRgb(i, j, 0) for i, j in zip(np.arange(0, 256, step), np.arange(255, -1, -step)) ]
+            rcm = [ QtGui.qRgb(j, 0, i) for i, j in zip(np.arange(0, 256, step), np.arange(255, -1, -step)) ]
+            cm = bcm + gcm + rcm
+            q_image.setColorTable(cm)
+
+        pixmap = QtGui.QPixmap(q_image)
         pixmap = pixmap.scaledToWidth(const.ccWidgetDim)
         self.setPixmap(pixmap)
         self.repaint()
 
-    def changeImage(self, toNext=True, dispAmp=True, logScale=False, dispLabs=True):
+    def changeImage(self, toNext=True, dispAmp=True, logScale=False, dispLabs=True, color=False):
         newImage = self.image.next if toNext else self.image.prev
         if newImage is None:
             return
@@ -94,7 +101,7 @@ class LabelExt(QtGui.QLabel):
 
         if len(self.pointSets) < self.image.numInSeries:
             self.pointSets.append([])
-        self.setImage(dispAmp, logScale)
+        self.setImage(dispAmp, logScale, color)
 
         labsToDel = self.children()
         for child in labsToDel:
@@ -286,7 +293,21 @@ class TriangulateWidget(QtGui.QWidget):
         self.sample_thick_input = QtGui.QLineEdit('30', self)
 
         calc_B_button = QtGui.QPushButton('Calculate B', self)
+        calc_grad_button = QtGui.QPushButton('Calculate gradient', self)
+
         calc_B_button.clicked.connect(self.calc_magnetic_field)
+        calc_grad_button.clicked.connect(self.calc_phase_gradient)
+
+        self.gray_radio_button = QtGui.QRadioButton('Grayscale', self)
+        self.color_radio_button = QtGui.QRadioButton('Color', self)
+        self.gray_radio_button.setChecked(True)
+
+        self.gray_radio_button.toggled.connect(self.update_display)
+        self.color_radio_button.toggled.connect(self.update_display)
+
+        color_group = QtGui.QButtonGroup(self)
+        color_group.addButton(self.gray_radio_button)
+        color_group.addButton(self.color_radio_button)
 
         grid_nav = QtGui.QGridLayout()
         grid_nav.addWidget(prevButton, 1, 1)
@@ -340,11 +361,14 @@ class TriangulateWidget(QtGui.QWidget):
         grid_plot.addWidget(self.int_width_input, 2, 1)
         grid_plot.addWidget(sample_thick_label, 1, 2)
         grid_plot.addWidget(self.sample_thick_input, 2, 2)
+        grid_plot.addWidget(self.gray_radio_button, 1, 3)
+        grid_plot.addWidget(self.color_radio_button, 2, 3)
         grid_plot.addWidget(plot_button, 3, 1)
         grid_plot.addWidget(calc_B_button, 3, 2)
+        grid_plot.addWidget(calc_grad_button, 3, 3)
 
-        self.int_width_input.setFixedWidth(120)
-        self.sample_thick_input.setFixedWidth(120)
+        self.int_width_input.setFixedWidth(150)
+        self.sample_thick_input.setFixedWidth(150)
 
         vbox_panel = QtGui.QVBoxLayout()
         vbox_panel.addLayout(grid_nav)
@@ -376,13 +400,15 @@ class TriangulateWidget(QtGui.QWidget):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
-        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked)
+        is_color_checked = self.color_radio_button.isChecked()
+        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
     def goToNextImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
-        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked)
+        is_color_checked = self.color_radio_button.isChecked()
+        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
     def flip_image_h(self):
         imsup.flip_image_h(self.display.image)
@@ -493,7 +519,8 @@ class TriangulateWidget(QtGui.QWidget):
     def update_display(self):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
-        self.display.setImage(dispAmp=is_amp_checked, logScale=is_log_scale_checked)
+        is_color_checked = self.color_radio_button.isChecked()
+        self.display.setImage(dispAmp=is_amp_checked, logScale=is_log_scale_checked, color=is_color_checked)
 
     def unwrap_img_phase(self):
         curr_img = self.display.image
@@ -972,6 +999,16 @@ class TriangulateWidget(QtGui.QWidget):
 
         self.plot_widget.plot(dists, int_profile, 'Distance [nm]', 'Intensity [a.u.]')
 
+    def calc_phase_gradient(self):
+        curr_img = self.display.image
+        grad_img = imsup.copy_am_ph_image(curr_img)
+        dx, dy = np.gradient(curr_img.amPh.ph)
+        dr = np.sqrt(dx * dx + dy * dy)
+        dphi = np.arctan2(dy, dx)
+        grad_img.amPh.am = np.copy(dr)
+        grad_img.amPh.ph = np.copy(dphi)
+        self.insert_img_after_curr(grad_img)
+
     def calc_magnetic_field(self):
         pt1, pt2 = self.plot_widget.markedPointsData
         d_dist = np.abs(pt1[0] - pt2[0]) * 1e-9
@@ -1054,6 +1091,7 @@ def zoom_fragment(img, coords):
     crop_width = np.abs(coords[2] - coords[0])
     zoom_factor = orig_width / crop_width
     zoom_img = tr.RescaleImageSki(crop_img, zoom_factor)
+    zoom_img.px_dim *= zoom_factor
     # self.insert_img_after_curr(zoom_img)
     return zoom_img
 
