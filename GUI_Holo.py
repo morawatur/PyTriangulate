@@ -1001,12 +1001,18 @@ class TriangulateWidget(QtGui.QWidget):
 
     def calc_phase_gradient(self):
         curr_img = self.display.image
+        dx_img = imsup.copy_am_ph_image(curr_img)
+        dy_img = imsup.copy_am_ph_image(curr_img)
         grad_img = imsup.copy_am_ph_image(curr_img)
         dx, dy = np.gradient(curr_img.amPh.ph)
         dr = np.sqrt(dx * dx + dy * dy)
         dphi = np.arctan2(dy, dx)
+        dx_img.amPh.ph = np.copy(dx)
+        dy_img.amPh.ph = np.copy(dy)
         grad_img.amPh.am = np.copy(dr)
         grad_img.amPh.ph = np.copy(dphi)
+        self.insert_img_after_curr(dx_img)
+        self.insert_img_after_curr(dy_img)
         self.insert_img_after_curr(grad_img)
 
     def calc_magnetic_field(self):
@@ -1209,7 +1215,7 @@ def CalcRotAngle(p1, p2):
     # rotAngle = np.abs(imsup.Degrees(phi2 - phi1))
     rotAngle = imsup.Degrees(phi2 - phi1)
     if np.abs(rotAngle) > 180:
-        rotAngle = np.sign(rotAngle) * (360 - np.abs(rotAngle))
+        rotAngle = -np.sign(rotAngle) * (360 - np.abs(rotAngle))
     return rotAngle
 
 # --------------------------------------------------------
