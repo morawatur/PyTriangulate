@@ -309,6 +309,12 @@ class TriangulateWidget(QtGui.QWidget):
         color_group.addButton(self.gray_radio_button)
         color_group.addButton(self.color_radio_button)
 
+        threshold_label = QtGui.QLabel('Int. threshold [0-1]', self)
+        self.threshold_input = QtGui.QLineEdit('0.9', self)
+
+        filter_contours_button = QtGui.QPushButton('Filter contours', self)
+        filter_contours_button.clicked.connect(self.filter_contours)
+
         grid_nav = QtGui.QGridLayout()
         grid_nav.addWidget(prevButton, 1, 1)
         grid_nav.addWidget(nextButton, 1, 2)
@@ -366,6 +372,9 @@ class TriangulateWidget(QtGui.QWidget):
         grid_plot.addWidget(plot_button, 3, 1)
         grid_plot.addWidget(calc_B_button, 3, 2)
         grid_plot.addWidget(calc_grad_button, 3, 3)
+        grid_plot.addWidget(threshold_label, 4, 1)
+        grid_plot.addWidget(self.threshold_input, 4, 2)
+        grid_plot.addWidget(filter_contours_button, 4, 3)
 
         self.int_width_input.setFixedWidth(150)
         self.sample_thick_input.setFixedWidth(150)
@@ -664,8 +673,9 @@ class TriangulateWidget(QtGui.QWidget):
         self.shift = rcShift
         self.rot_angle = rotAngleAvg
 
-        # img2Mag = tr.RescaleImageSki(img2Rc, magAvg)
-        img2Rot = tr.RotateImageSki(img2Rc, rotAngleAvg)
+        img2Mag = tr.RescaleImageSki(img2Rc, magAvg)
+        # img2Rot = tr.RotateImageSki(img2Rc, rotAngleAvg)
+        img2Rot = tr.RotateImageSki(img2Mag, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
 
@@ -712,6 +722,7 @@ class TriangulateWidget(QtGui.QWidget):
             shift_sum += shift
 
         shift_avg = list(shift_sum // n_points1)
+        shift_avg.reverse()     # !!!
         self.shift = shift_avg
 
         shifted_img2 = cc.shift_am_ph_image(curr_img, shift_avg)
@@ -1023,6 +1034,17 @@ class TriangulateWidget(QtGui.QWidget):
         B_in_plane = (const.planck_const / sample_thickness) * (d_phase / d_dist)
         print('B = {0:.2f} T'.format(B_in_plane))
 
+    def filter_contours(self):
+        curr_img = self.display.image
+        phs = np.copy(curr_img.amPh.ph)
+        phs_scaled = imsup.ScaleImage(phs, 0, 1)
+        threshold = float(self.threshold_input.text())
+        phs_scaled[phs_scaled < threshold] = 0
+        img_filtered = imsup.copy_am_ph_image(curr_img)
+        img_filtered.amPh.ph = np.copy(phs_scaled)
+        self.insert_img_after_curr(img_filtered)
+        # find_contours(self.display.image)
+
     # def plot_profile(self):
     #     curr_img = self.display.image
     #     curr_idx = curr_img.numInSeries - 1
@@ -1235,3 +1257,56 @@ def RunTriangulationWindow():
     app = QtGui.QApplication(sys.argv)
     trWindow = TriangulateWidget()
     sys.exit(app.exec_())
+
+# --------------------------------------------------------
+
+def trace_contour(arr, xy):
+    contour = []
+    x, y = xy
+    adj_sum = 1
+    mid = np.ones(2)
+    last_xy = [1, 1]
+    print(xy)
+
+    while adj_sum > 0:
+        adj_arr = arr[x-1:x+2, y-1:y+2]
+        adj_arr[last_xy[0], last_xy[1]] = 0
+        adj_arr[1, 1] = 0
+        adj_sum = np.sum(np.array(adj_arr))
+        if adj_sum > 0:
+            next_xy = [ idx[0] for idx in np.where(adj_arr == 1) ]
+            last_xy = list(2 * mid - np.array(next_xy))
+            next_xy = list(np.array(next_xy)-1 + np.array(xy))
+            contour.append(next_xy)
+            x, y = next_xy
+            xy = [x, y]
+            print(next_xy)
+
+    print(len(contour))
+    cont_arr = np.zeros(arr.shape)
+    for idxs in contour:
+        cont_arr[idxs[0], idxs[1]] = 1
+
+    # cont_img = imsup.ImageWithBuffer(cont_arr.shape[0], cont_arr.shape[1])
+    # cont_img.LoadAmpData(cont_arr)
+    # imsup.DisplayAmpImage(cont_img)
+
+    return contour
+
+# --------------------------------------------------------
+
+def find_contours(img):
+    # arrow_dirs = np.zeros((img.height, img.width))
+    ph_arr = np.copy(img.amPh.ph)
+    ph_arr_scaled = imsup.ScaleImage(ph_arr, 0, 1)
+    ph_arr_scaled[ph_arr_scaled < 0.98] = 0
+    ph_arr_scaled[ph_arr_scaled >= 0.98] = 1
+    # ph_arr_corr = imsup.ScaleImage(ph_arr_scaled, 0, 1)
+
+    for i in range(100, img.height):
+        for j in range(100, img.width):
+            if ph_arr_scaled[i, j] == 1:
+                print('Found one!')
+                print(i, j)
+                contour = trace_contour(ph_arr_scaled, [i, j])
+                return contour

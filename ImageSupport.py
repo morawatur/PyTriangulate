@@ -226,13 +226,25 @@ class ImageList(list):
 
 #-------------------------------------------------------------------
 
-def AmPh2ReIm_cpu(amp, phs):
-    return amp * np.exp(1j * phs)
+def am_ph_2_re_im_cpu(img):
+    img_ri = ImageWithBuffer(img.height, img.width, cmpRepr=Image.cmp['CRI'])
+    if img.cmpRepr == Image.cmp['CRI']:
+        img_ri.reIm = np.copy(img.reIm)
+    else:
+        img_ri.reIm = img.amPh.am * np.exp(1j * img.amPh.ph)
+    return img_ri
 
 # ---------------------------------------------------------------
 
-def ReIm2AmPh_cpu(x):
-    return np.abs(x), np.angle(x)
+def re_im_2_am_ph_cpu(img):
+    img_ap = ImageWithBuffer(img.height, img.width, cmpRepr=Image.cmp['CAP'])
+    if img.cmpRepr == Image.cmp['CAP']:
+        img_ap.amPh.am = np.copy(img.amPh.am)
+        img_ap.amPh.ph = np.copy(img.amPh.ph)
+    else:
+        img_ap.amPh.am = np.abs(img.reIm)
+        img_ap.amPh.ph = np.angle(img.reIm)
+    return img_ap
 
 #-------------------------------------------------------------------
 
@@ -406,7 +418,8 @@ def CropImageROICoords(img, coords):
 
 # -------------------------------------------------------------------
 
-@cuda.jit('void(complex64[:, :], complex64[:, :], int32[:])')
+# @cuda.jit('void(complex64[:, :], complex64[:, :], int32[:])')
+@cuda.jit()
 def CropImageROICoords_dev(img, roi, topLeft):
     rx, ry = cuda.grid(2)
     if rx >= roi.shape[0] or ry >= roi.shape[1]:
@@ -661,6 +674,20 @@ def ClearImageData(img):
     # img.amPh.am = cuda.device_array(shape, dtype=np.float32)
     # img.amPh.ph = cuda.device_array(shape, dtype=np.float32)
     # img.ChangeMemoryType(mt)
+
+#-------------------------------------------------------------------
+
+def copy_re_im_image(img):
+    img.MoveToCPU()
+    img_copy = ImageWithBuffer(img.height, img.width, cmpRepr=img.cmpRepr, memType=img.memType, defocus=img.defocus, num=img.numInSeries)
+    img_copy.reIm = np.copy(img.amPh.reIm)
+
+    if img.prev is not None:
+        img_copy.prev = img.prev
+    if img.next is not None:
+        img_copy.next = img.next
+
+    return img_copy
 
 #-------------------------------------------------------------------
 
