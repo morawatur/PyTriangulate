@@ -99,8 +99,16 @@ class Image:
         # ClearImageData(self)
 
     def __del__(self):
-        del self.reIm
-        del self.amPh
+        self.reIm = None
+        self.amPh.am = None
+        self.amPh.ph = None
+        cuda.current_context().deallocations.clear()
+
+    def ClearGPUMemory(self):
+        self.reIm = None
+        self.amPh.am = None
+        self.amPh.ph = None
+        cuda.current_context().deallocations.clear()
 
     def ChangeMemoryType(self, newType):
         if newType == self.mem['CPU']:
@@ -119,9 +127,16 @@ class Image:
     def MoveToCPU(self):
         if self.memType == self.mem['CPU']:
             return
-        self.reIm = self.reIm.copy_to_host()
-        self.amPh.am = self.amPh.am.copy_to_host()
-        self.amPh.ph = self.amPh.ph.copy_to_host()
+        reIm1 = self.reIm.copy_to_host()
+        am1 = self.amPh.am.copy_to_host()
+        ph1 = self.amPh.ph.copy_to_host()
+        self.reIm = None
+        self.amPh.am = None
+        self.amPh.ph = None
+        cuda.current_context().deallocations.clear()  # release GPU memory which is not referenced (gpu_pointer = None)
+        self.reIm = np.copy(reIm1)
+        self.amPh.am = np.copy(am1)
+        self.amPh.ph = np.copy(ph1)
         self.memType = self.mem['CPU']
 
     def ChangeComplexRepr(self, newRepr):
@@ -203,7 +218,10 @@ class ImageWithBuffer(Image):
         if self.memType == self.mem['CPU']:
             return
         super(ImageWithBuffer, self).MoveToCPU()
-        self.buffer = self.buffer.copy_to_host()
+        buf = self.buffer.copy_to_host()
+        self.buffer = None
+        cuda.current_context().deallocations.clear()
+        self.buffer = np.copy(buf)
 
     def ReIm2AmPh(self):
         if self.cmpRepr == self.cmp['CAP']:
@@ -799,6 +817,26 @@ def PadImage(img, bufSz, padValue, dirs):
 
     img.ChangeMemoryType(mt)
     return imgPadded
+
+#-------------------------------------------------------------------
+
+def pad_img_from_ref(img, ref_width, pad_value, dirs):
+    buf_sz_tot = ref_width - img.width
+    buf_sz = buf_sz_tot // 2
+
+    if buf_sz_tot % 2 == 0:
+        pads = [buf_sz if d in 'tblr' else 0 for d in dirs]
+    else:
+        pads = [(buf_sz + (1 if idx % 2 else 0)) if d in 'tblr' else 0 for d, idx in zip(dirs, range(len(dirs)))]
+
+    p_height = img.height + pads[0] + pads[1]
+    p_width = img.width + pads[2] + pads[3]
+
+    padded_img = ImageWithBuffer(p_height, p_width, img.cmpRepr, img.memType, img.defocus, img.numInSeries)
+    PadArray(img.amPh.am, padded_img.amPh.am, pads, pad_value)
+    PadArray(img.amPh.ph, padded_img.amPh.ph, pads, pad_value)
+
+    return padded_img
 
 #-------------------------------------------------------------------
 

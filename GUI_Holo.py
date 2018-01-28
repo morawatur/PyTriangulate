@@ -218,11 +218,13 @@ class TriangulateWidget(QtGui.QWidget):
         reshift_button = QtGui.QPushButton('Re-Shift', self)
         warpButton = QtGui.QPushButton('Warp', self)
         rerot_button = QtGui.QPushButton('Re-Rot', self)
+        magnify_button = QtGui.QPushButton('Magnify', self)
 
         alignButton.clicked.connect(self.align_images)
         reshift_button.clicked.connect(self.reshift)
         warpButton.clicked.connect(partial(self.warp_image, False))
         rerot_button.clicked.connect(self.rerotate)
+        magnify_button.clicked.connect(self.magnify)
 
         fname_label = QtGui.QLabel('File name', self)
         self.fname_input = QtGui.QLineEdit('img', self)
@@ -345,6 +347,7 @@ class TriangulateWidget(QtGui.QWidget):
         grid_align.addWidget(warpButton, 2, 2)
         grid_align.addWidget(reshift_button, 1, 3)
         grid_align.addWidget(rerot_button, 2, 3)
+        grid_align.addWidget(magnify_button, 3, 1)
 
         grid_holo = QtGui.QGridLayout()
         grid_holo.addWidget(fname_label, 1, 1)
@@ -612,13 +615,6 @@ class TriangulateWidget(QtGui.QWidget):
         poly1 = [ CalcRealCoords(img_width, pt1) for pt1 in points1 ]
         poly2 = [ CalcRealCoords(img_width, pt2) for pt2 in points2 ]
 
-        poly1_dists = []
-        poly2_dists = []
-        for i in range(len(poly1)):
-            for j in range(i+1, len(poly1)):
-                poly1_dists.append(CalcDistance(poly1[i], poly1[j]))
-                poly2_dists.append(CalcDistance(poly2[i], poly2[j]))
-
         rcSum = [0, 0]
         rotCenters = []
         for idx1 in range(len(poly1)):
@@ -656,26 +652,15 @@ class TriangulateWidget(QtGui.QWidget):
 
         rotAngleAvg = np.average(rotAngles)
 
-        mags = [ dist1 / dist2 for dist1, dist2 in zip(poly1_dists, poly2_dists) ]
-        magAvg = np.average(mags)
-
-        print('---- Magnification ----')
-        print([ 'mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(len(mags)), mags) ])
         print('---- Rotation ----')
         print([ 'phi{0} = {1:.0f} deg\n'.format(idx + 1, angle) for idx, angle in zip(range(len(rotAngles)), rotAngles) ])
-        # print('---- Shifts ----')
-        # print([ 'dxy{0} = ({1:.1f}, {2:.1f}) px\n'.format(idx + 1, sh[0], sh[1]) for idx, sh in zip(range(3), shifts) ])
-        # print('------------------')
-        # print('Average magnification = {0:.2f}x'.format(magAvg))
+        print('------------------')
         print('Average rotation = {0:.2f} deg'.format(rotAngleAvg))
-        # print('Average shift = ({0:.0f}, {1:.0f}) px'.format(shiftAvg[0], shiftAvg[1]))
 
         self.shift = rcShift
         self.rot_angle = rotAngleAvg
 
-        img2Mag = tr.RescaleImageSki(img2Rc, magAvg)
-        # img2Rot = tr.RotateImageSki(img2Rc, rotAngleAvg)
-        img2Rot = tr.RotateImageSki(img2Mag, rotAngleAvg)
+        img2Rot = tr.RotateImageSki(img2Rc, rotAngleAvg)
         padSz = (img2Rot.width - img1Rc.width) // 2
         img1RcPad = imsup.PadImage(img1Rc, padSz, 0.0, 'tblr')
 
@@ -688,16 +673,10 @@ class TriangulateWidget(QtGui.QWidget):
         img1_mag = tr.RescaleImageSki(img1RcPad, mag_factor)
         img2_mag = tr.RescaleImageSki(img2Rot, mag_factor)
 
-        curr_num = self.display.image.numInSeries
-        tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-        tmp_img_list.insert(1, img1_mag)
-        tmp_img_list.insert(2, img2_mag)
-        tmp_img_list.UpdateLinks()
-        self.display.pointSets.insert(curr_num, [])
-        self.display.pointSets.insert(curr_num+1, [])
-        self.goToNextImage()
+        self.insert_img_after_curr(img1_mag)
+        self.insert_img_after_curr(img2_mag)
 
-        print('Triangulation complete!')
+        print('Rotation complete!')
 
     def align_shift(self):
         curr_img = self.display.image
@@ -753,6 +732,59 @@ class TriangulateWidget(QtGui.QWidget):
         rot_angle = self.rot_angle
         rotated_img = tr.RotateImageSki(curr_img, rot_angle)
         self.insert_img_after_curr(rotated_img)
+
+    def magnify(self):
+        curr_img = self.display.image
+        ref_img = curr_img.prev
+        curr_idx = curr_img.numInSeries - 1
+        img_width = curr_img.width
+
+        points1 = self.display.pointSets[curr_idx - 1]
+        points2 = self.display.pointSets[curr_idx]
+        n_points1 = len(points1)
+        n_points2 = len(points2)
+
+        if n_points1 != n_points2:
+            print('Mark the same number of points on both images!')
+            return
+
+        poly1 = [CalcRealCoords(img_width, pt1) for pt1 in points1]
+        poly2 = [CalcRealCoords(img_width, pt2) for pt2 in points2]
+
+        poly1_dists = []
+        poly2_dists = []
+        for i in range(len(poly1)):
+            for j in range(i + 1, len(poly1)):
+                poly1_dists.append(CalcDistance(poly1[i], poly1[j]))
+                poly2_dists.append(CalcDistance(poly2[i], poly2[j]))
+
+        mags = [dist1 / dist2 for dist1, dist2 in zip(poly1_dists, poly2_dists)]
+        mag_avg = np.average(mags)
+
+        print('---- Magnification ----')
+        print(['mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(len(mags)), mags)])
+        print('------------------')
+        print('Average magnification = {0:.2f}x'.format(mag_avg))
+
+        magnified_img = tr.RescaleImageSki(curr_img, mag_avg)
+
+        pad_sz = (magnified_img.width - curr_img.width) // 2
+        if pad_sz > 0:
+            padded_img1 = imsup.pad_img_from_ref(ref_img, magnified_img.width, 0.0, 'tblr')
+            padded_img2 = imsup.copy_am_ph_image(magnified_img)
+            resc_factor = ref_img.width / padded_img1.width
+            resc_img1 = tr.RescaleImageSki(padded_img1, resc_factor)
+            resc_img2 = tr.RescaleImageSki(padded_img2, resc_factor)
+            resc_img2.prev, resc_img2.next = None, None
+        else:
+            resc_img1 = imsup.copy_am_ph_image(ref_img)
+            resc_img1.prev, resc_img1.next = None, None
+            resc_img2 = imsup.pad_img_from_ref(magnified_img, ref_img.width, 0.0, 'tblr')
+
+        self.insert_img_after_curr(resc_img1)
+        self.insert_img_after_curr(resc_img2)
+
+        print('Magnification complete!')
 
     def warp_image(self, more_accurate=False):
         curr_img = self.display.image
