@@ -102,13 +102,13 @@ class Image:
         self.reIm = None
         self.amPh.am = None
         self.amPh.ph = None
-        cuda.current_context().deallocations.clear()
+        # cuda.current_context().deallocations.clear()
 
     def ClearGPUMemory(self):
         self.reIm = None
         self.amPh.am = None
         self.amPh.ph = None
-        cuda.current_context().deallocations.clear()
+        # cuda.current_context().deallocations.clear()
 
     def ChangeMemoryType(self, newType):
         if newType == self.mem['CPU']:
@@ -133,7 +133,7 @@ class Image:
         self.reIm = None
         self.amPh.am = None
         self.amPh.ph = None
-        cuda.current_context().deallocations.clear()  # release GPU memory which is not referenced (gpu_pointer = None)
+        # cuda.current_context().deallocations.clear()  # release GPU memory which is not referenced (gpu_pointer = None)
         self.reIm = np.copy(reIm1)
         self.amPh.am = np.copy(am1)
         self.amPh.ph = np.copy(ph1)
@@ -186,7 +186,9 @@ class ImageWithBuffer(Image):
 
     def __del__(self):
         super(ImageWithBuffer, self).__del__()
-        del self.buffer
+        # del self.buffer
+        self.buffer = None
+        # cuda.current_context().deallocations.clear()
 
     def LoadAmpData(self, ampData):
         self.amPh.am = np.copy(ampData)
@@ -220,7 +222,7 @@ class ImageWithBuffer(Image):
         super(ImageWithBuffer, self).MoveToCPU()
         buf = self.buffer.copy_to_host()
         self.buffer = None
-        cuda.current_context().deallocations.clear()
+        # cuda.current_context().deallocations.clear()
         self.buffer = np.copy(buf)
 
     def ReIm2AmPh(self):

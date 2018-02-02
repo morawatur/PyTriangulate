@@ -172,6 +172,7 @@ class TriangulateWidget(QtGui.QWidget):
         self.plot_widget = PlotWidget()
         self.shift = [0, 0]
         self.rot_angle = 0
+        self.mag_coeff = 1.0
         self.initUI()
 
     def initUI(self):
@@ -215,16 +216,18 @@ class TriangulateWidget(QtGui.QWidget):
         shift_rot_group.addButton(self.rot_radio_button)
 
         alignButton = QtGui.QPushButton('Align', self)
-        reshift_button = QtGui.QPushButton('Re-Shift', self)
         warpButton = QtGui.QPushButton('Warp', self)
-        rerot_button = QtGui.QPushButton('Re-Rot', self)
         magnify_button = QtGui.QPushButton('Magnify', self)
+        reshift_button = QtGui.QPushButton('Re-Shift', self)
+        rerot_button = QtGui.QPushButton('Re-Rot', self)
+        remag_button = QtGui.QPushButton('Re-Mag', self)
 
         alignButton.clicked.connect(self.align_images)
-        reshift_button.clicked.connect(self.reshift)
         warpButton.clicked.connect(partial(self.warp_image, False))
-        rerot_button.clicked.connect(self.rerotate)
         magnify_button.clicked.connect(self.magnify)
+        reshift_button.clicked.connect(self.reshift)
+        rerot_button.clicked.connect(self.rerotate)
+        remag_button.clicked.connect(self.remagnify)
 
         fname_label = QtGui.QLabel('File name', self)
         self.fname_input = QtGui.QLineEdit('img', self)
@@ -345,9 +348,10 @@ class TriangulateWidget(QtGui.QWidget):
         grid_align.addWidget(self.rot_radio_button, 2, 1)
         grid_align.addWidget(alignButton, 1, 2)
         grid_align.addWidget(warpButton, 2, 2)
+        grid_align.addWidget(magnify_button, 3, 2)
         grid_align.addWidget(reshift_button, 1, 3)
         grid_align.addWidget(rerot_button, 2, 3)
-        grid_align.addWidget(magnify_button, 3, 1)
+        grid_align.addWidget(remag_button, 3, 3)
 
         grid_holo = QtGui.QGridLayout()
         grid_holo.addWidget(fname_label, 1, 1)
@@ -760,6 +764,7 @@ class TriangulateWidget(QtGui.QWidget):
 
         mags = [dist1 / dist2 for dist1, dist2 in zip(poly1_dists, poly2_dists)]
         mag_avg = np.average(mags)
+        self.mag_coeff = mag_avg
 
         print('---- Magnification ----')
         print(['mag{0} = {1:.2f}x\n'.format(idx + 1, mag) for idx, mag in zip(range(len(mags)), mags)])
@@ -785,6 +790,22 @@ class TriangulateWidget(QtGui.QWidget):
         self.insert_img_after_curr(resc_img2)
 
         print('Magnification complete!')
+
+    def remagnify(self):
+        curr_img = self.display.image
+        mag_factor = self.mag_coeff
+
+        mag_img = tr.RescaleImageSki(curr_img, mag_factor)
+        pad_sz = (mag_img.width - curr_img.width) // 2
+
+        if pad_sz > 0:
+            pad_img = imsup.pad_img_from_ref(curr_img, mag_img.width, 0.0, 'tblr')
+            resc_factor = curr_img.width / pad_img.width
+            resc_img = tr.RescaleImageSki(pad_img, resc_factor)
+        else:
+            resc_img = imsup.pad_img_from_ref(mag_img, curr_img.width, 0.0, 'tblr')
+
+        self.insert_img_after_curr(resc_img)
 
     def warp_image(self, more_accurate=False):
         curr_img = self.display.image
