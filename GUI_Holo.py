@@ -79,11 +79,16 @@ class LabelExt(QtGui.QLabel):
                                self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
 
         if color:
-            step = 3
-            bcm = [ QtGui.qRgb(0, i, j) for i, j in zip(np.arange(0, 256, step), np.arange(255, -1, -step)) ]
-            gcm = [ QtGui.qRgb(i, j, 0) for i, j in zip(np.arange(0, 256, step), np.arange(255, -1, -step)) ]
-            rcm = [ QtGui.qRgb(j, 0, i) for i, j in zip(np.arange(0, 256, step), np.arange(255, -1, -step)) ]
-            cm = bcm + gcm + rcm
+            step = 6
+            inc_range = np.arange(0, 256, step)
+            dec_range = np.arange(255, -1, -step)
+            bcm1 = [ QtGui.qRgb(0, i, 255) for i in inc_range ]
+            gcm1 = [ QtGui.qRgb(0, 255, i) for i in dec_range ]
+            gcm2 = [ QtGui.qRgb(i, 255, 0) for i in inc_range ]
+            rcm1 = [ QtGui.qRgb(255, i, 0) for i in dec_range ]
+            rcm2 = [ QtGui.qRgb(255, 0, i) for i in inc_range ]
+            bcm2 = [ QtGui.qRgb(i, 0, 255) for i in dec_range ]
+            cm = bcm1 + gcm1 + gcm2 + rcm1 + rcm2 + bcm2
             q_image.setColorTable(cm)
 
         pixmap = QtGui.QPixmap(q_image)
@@ -407,7 +412,7 @@ class TriangulateWidget(QtGui.QWidget):
         self.setLayout(vbox_main)
 
         self.move(250, 5)
-        self.setWindowTitle('Triangulation window')
+        self.setWindowTitle('Holo window')
         self.setWindowIcon(QtGui.QIcon('gui/world.png'))
         self.show()
         self.setFixedSize(self.width(), self.height())  # disable window resizing
@@ -1146,8 +1151,8 @@ def LoadImageSeriesFromFirstFile(imgPath):
         img.LoadAmpData(np.sqrt(imgData).astype(np.float32))
         # ---
         # imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
-        imsup.RemovePixelArtifacts(img, 0.7, 1.3)
-        img.UpdateBuffer()
+        # imsup.RemovePixelArtifacts(img, 0.7, 1.3)
+        # img.UpdateBuffer()
         # ---
         imgList.append(img)
 
