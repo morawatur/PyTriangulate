@@ -65,15 +65,16 @@ class LabelExt(QtGui.QLabel):
             lab.move(pos.x()+4, pos.y()+4)
             lab.show()
 
-    def setImage(self, dispAmp=True, logScale=False, color=False):
+    def setImage(self, dispAmp=True, logScale=False, color=False, buf=False):
         self.image.MoveToCPU()
 
-        if dispAmp:
-            self.image.buffer = np.copy(self.image.amPh.am)
-            if logScale:
-                self.image.buffer = np.log(self.image.buffer)
-        else:
-            self.image.buffer = np.copy(self.image.amPh.ph)
+        if not buf:
+            if dispAmp:
+                self.image.buffer = np.copy(self.image.amPh.am)
+                if logScale:
+                    self.image.buffer = np.log(self.image.buffer)
+            else:
+                self.image.buffer = np.copy(self.image.amPh.ph)
 
         q_image = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
                                self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
@@ -96,7 +97,7 @@ class LabelExt(QtGui.QLabel):
         self.setPixmap(pixmap)
         self.repaint()
 
-    def changeImage(self, toNext=True, dispAmp=True, logScale=False, dispLabs=True, color=False):
+    def changeImage(self, toNext=True, dispAmp=True, logScale=False, dispLabs=True, color=False, mod=False):
         newImage = self.image.next if toNext else self.image.prev
         if newImage is None:
             return
@@ -106,7 +107,7 @@ class LabelExt(QtGui.QLabel):
 
         if len(self.pointSets) < self.image.numInSeries:
             self.pointSets.append([])
-        self.setImage(dispAmp, logScale, color)
+        self.setImage(dispAmp, logScale, color, buf=mod)
 
         labsToDel = self.children()
         for child in labsToDel:
@@ -178,6 +179,7 @@ class TriangulateWidget(QtGui.QWidget):
         self.shift = [0, 0]
         self.rot_angle = 0
         self.mag_coeff = 1.0
+        self.warp_points = []
         self.initUI()
 
     def initUI(self):
@@ -196,13 +198,11 @@ class TriangulateWidget(QtGui.QWidget):
         rswap_button.clicked.connect(self.swap_right)
 
         flipButton = QtGui.QPushButton('Flip', self)
-        zoomButton = QtGui.QPushButton('Zoom', self)
+        zoomButton = QtGui.QPushButton('Zoom N images', self)
+        self.n_to_zoom_input = QtGui.QLineEdit('1', self)
 
         flipButton.clicked.connect(self.flip_image_h)
         zoomButton.clicked.connect(self.zoom_n_fragments)
-
-        n_to_zoom_label = QtGui.QLabel('How many?', self)
-        self.n_to_zoom_input = QtGui.QLineEdit('1', self)
 
         exportButton = QtGui.QPushButton('Export', self)
         deleteButton = QtGui.QPushButton('Delete', self)
@@ -211,6 +211,54 @@ class TriangulateWidget(QtGui.QWidget):
         exportButton.clicked.connect(self.export_image)
         deleteButton.clicked.connect(self.deleteImage)
         clearButton.clicked.connect(self.clearImage)
+
+        left_button = QtGui.QPushButton(QtGui.QIcon('gui/left.png'), '', self)
+        right_button = QtGui.QPushButton(QtGui.QIcon('gui/right.png'), '', self)
+        up_button = QtGui.QPushButton(QtGui.QIcon('gui/up.png'), '', self)
+        down_button = QtGui.QPushButton(QtGui.QIcon('gui/down.png'), '', self)
+        self.px_shift_input = QtGui.QLineEdit('0', self)
+
+        rot_clockwise_button = QtGui.QPushButton(QtGui.QIcon('gui/rot_right.png'), '', self)
+        rot_counter_clockwise_button = QtGui.QPushButton(QtGui.QIcon('gui/rot_left.png'), '', self)
+        self.rot_angle_input = QtGui.QLineEdit('0.0', self)
+
+        self.px_shift_input.setFixedWidth(60)
+        self.rot_angle_input.setFixedWidth(60)
+
+        left_button.clicked.connect(self.move_left)
+        right_button.clicked.connect(self.move_right)
+        up_button.clicked.connect(self.move_up)
+        down_button.clicked.connect(self.move_down)
+
+        rot_counter_clockwise_button.clicked.connect(self.rot_left)
+        rot_clockwise_button.clicked.connect(self.rot_right)
+
+        left_button.setFixedWidth(60)
+        right_button.setFixedWidth(60)
+        up_button.setFixedWidth(60)
+        down_button.setFixedWidth(60)
+        rot_counter_clockwise_button.setFixedWidth(60)
+        rot_clockwise_button.setFixedWidth(60)
+
+        apply_button = QtGui.QPushButton('Apply changes', self)
+        apply_button.clicked.connect(self.apply_changes)
+
+        self.manual_mode_checkbox = QtGui.QCheckBox('Manual mode', self)
+        self.manual_mode_checkbox.setChecked(False)
+
+        grid_manual = QtGui.QGridLayout()
+        grid_manual.addWidget(left_button, 2, 1)
+        grid_manual.addWidget(right_button, 2, 3)
+        grid_manual.addWidget(up_button, 1, 2)
+        grid_manual.addWidget(down_button, 3, 2)
+        grid_manual.addWidget(self.px_shift_input, 2, 2)
+
+        grid_manual.addWidget(self.manual_mode_checkbox, 1, 4)
+        grid_manual.addWidget(apply_button, 2, 4)
+
+        grid_manual.addWidget(rot_counter_clockwise_button, 2, 5)
+        grid_manual.addWidget(self.rot_angle_input, 2, 6)
+        grid_manual.addWidget(rot_clockwise_button, 2, 7)
 
         self.shift_radio_button = QtGui.QRadioButton('Shift', self)
         self.rot_radio_button = QtGui.QRadioButton('Rot', self)
@@ -226,6 +274,7 @@ class TriangulateWidget(QtGui.QWidget):
         reshift_button = QtGui.QPushButton('Re-Shift', self)
         rerot_button = QtGui.QPushButton('Re-Rot', self)
         remag_button = QtGui.QPushButton('Re-Mag', self)
+        rewarp_button = QtGui.QPushButton('Re-Warp', self)
 
         alignButton.clicked.connect(self.align_images)
         warpButton.clicked.connect(partial(self.warp_image, False))
@@ -233,6 +282,7 @@ class TriangulateWidget(QtGui.QWidget):
         reshift_button.clicked.connect(self.reshift)
         rerot_button.clicked.connect(self.rerotate)
         remag_button.clicked.connect(self.remagnify)
+        rewarp_button.clicked.connect(self.rewarp)
 
         fname_label = QtGui.QLabel('File name', self)
         self.fname_input = QtGui.QLineEdit('img', self)
@@ -326,75 +376,89 @@ class TriangulateWidget(QtGui.QWidget):
         filter_contours_button.clicked.connect(self.filter_contours)
 
         grid_nav = QtGui.QGridLayout()
-        grid_nav.addWidget(prevButton, 1, 1)
-        grid_nav.addWidget(nextButton, 1, 2)
-        grid_nav.addWidget(lswap_button, 2, 1)
-        grid_nav.addWidget(rswap_button, 2, 2)
-        grid_nav.addWidget(flipButton, 3, 1)
-        grid_nav.addWidget(clearButton, 3, 2)
-        grid_nav.addWidget(exportButton, 4, 1)
-        grid_nav.addWidget(deleteButton, 4, 2)
+        grid_nav.addWidget(prevButton, 0, 0)
+        grid_nav.addWidget(nextButton, 0, 1)
+        grid_nav.addWidget(lswap_button, 1, 0)
+        grid_nav.addWidget(rswap_button, 1, 1)
+        grid_nav.addWidget(flipButton, 2, 0)
+        grid_nav.addWidget(clearButton, 2, 1)
+        grid_nav.addWidget(exportButton, 3, 0)
+        grid_nav.addWidget(deleteButton, 3, 1)
 
         grid_disp = QtGui.QGridLayout()
-        grid_disp.addWidget(n_to_zoom_label, 1, 2)
-        grid_disp.addWidget(self.n_to_zoom_input, 2, 2)
-        grid_disp.addWidget(zoomButton, 2, 1)
-        grid_disp.addWidget(self.show_lines_checkbox, 3, 1)
-        grid_disp.addWidget(self.show_labels_checkbox, 4, 1)
-        grid_disp.addWidget(self.log_scale_checkbox, 5, 1)
-        grid_disp.addWidget(self.amp_radio_button, 3, 2)
-        grid_disp.addWidget(self.phs_radio_button, 4, 2)
-        grid_disp.addWidget(self.phs_unwrap_checkbox, 5, 2)
-        grid_disp.addWidget(phs_uw_ok_button, 5, 3)
+        grid_disp.addWidget(zoomButton, 0, 0)
+        grid_disp.addWidget(self.n_to_zoom_input, 0, 1)
+        grid_disp.addWidget(self.show_lines_checkbox, 1, 0)
+        grid_disp.addWidget(self.show_labels_checkbox, 2, 0)
+        grid_disp.addWidget(self.log_scale_checkbox, 3, 0)
+        grid_disp.addWidget(self.amp_radio_button, 1, 1)
+        grid_disp.addWidget(self.phs_radio_button, 2, 1)
+        grid_disp.addWidget(self.phs_unwrap_checkbox, 3, 1)
+        grid_disp.addWidget(phs_uw_ok_button, 3, 2)
+
         self.n_to_zoom_input.setFixedWidth(120)
 
+        vbox_sh_rot_rb = QtGui.QVBoxLayout()
+        vbox_sh_rot_rb.addWidget(self.shift_radio_button)
+        vbox_sh_rot_rb.addWidget(self.rot_radio_button)
+
+        vbox_sh_rot_bt = QtGui.QVBoxLayout()
+        vbox_sh_rot_bt.addWidget(reshift_button)
+        vbox_sh_rot_bt.addWidget(rerot_button)
+
+        alignButton.setFixedHeight(50)
+
         grid_align = QtGui.QGridLayout()
-        grid_align.addWidget(self.shift_radio_button, 1, 1)
-        grid_align.addWidget(self.rot_radio_button, 2, 1)
-        grid_align.addWidget(alignButton, 1, 2)
-        grid_align.addWidget(warpButton, 2, 2)
-        grid_align.addWidget(magnify_button, 3, 2)
-        grid_align.addWidget(reshift_button, 1, 3)
-        grid_align.addWidget(rerot_button, 2, 3)
-        grid_align.addWidget(remag_button, 3, 3)
+        grid_align.setColumnStretch(1, 1)
+        grid_align.setColumnStretch(2, 1)
+        grid_align.addLayout(vbox_sh_rot_rb, 0, 0)
+        grid_align.addWidget(alignButton, 0, 1)
+        grid_align.addWidget(magnify_button, 1, 1)
+        grid_align.addWidget(warpButton, 2, 1)
+        grid_align.addLayout(vbox_sh_rot_bt, 0, 2)
+        grid_align.addWidget(remag_button, 1, 2)
+        grid_align.addWidget(rewarp_button, 2, 2)
 
         grid_holo = QtGui.QGridLayout()
-        grid_holo.addWidget(fname_label, 1, 1)
-        grid_holo.addWidget(self.fname_input, 2, 1)
-        grid_holo.addWidget(aperture_label, 1, 2)
-        grid_holo.addWidget(self.aperture_input, 2, 2)
-        grid_holo.addWidget(hann_win_label, 1, 3)
-        grid_holo.addWidget(self.hann_win_input, 2, 3)
-        grid_holo.addWidget(holo_no_ref_1_button, 3, 1)
-        grid_holo.addWidget(holo_no_ref_2_button, 3, 2)
-        grid_holo.addWidget(holo_with_ref_2_button, 3, 3)
-        grid_holo.addWidget(holo_no_ref_3_button, 3, 4)
-        grid_holo.addWidget(sum_button, 4, 1)
-        grid_holo.addWidget(diff_button, 4, 2)
-        grid_holo.addWidget(self.amp_factor_input, 4, 3)
-        grid_holo.addWidget(amplify_button, 4, 4)
+        grid_holo.addWidget(fname_label, 0, 0)
+        grid_holo.addWidget(self.fname_input, 1, 0)
+        grid_holo.addWidget(aperture_label, 0, 1)
+        grid_holo.addWidget(self.aperture_input, 1, 1)
+        grid_holo.addWidget(hann_win_label, 0, 2)
+        grid_holo.addWidget(self.hann_win_input, 1, 2)
+        grid_holo.addWidget(holo_no_ref_1_button, 2, 0)
+        grid_holo.addWidget(holo_no_ref_2_button, 2, 1)
+        grid_holo.addWidget(holo_with_ref_2_button, 2, 2)
+        grid_holo.addWidget(holo_no_ref_3_button, 2, 3)
+        grid_holo.addWidget(sum_button, 3, 0)
+        grid_holo.addWidget(diff_button, 3, 1)
+        grid_holo.addWidget(self.amp_factor_input, 3, 2)
+        grid_holo.addWidget(amplify_button, 3, 3)
 
         grid_plot = QtGui.QGridLayout()
-        grid_plot.addWidget(int_width_label, 1, 1)
-        grid_plot.addWidget(self.int_width_input, 2, 1)
-        grid_plot.addWidget(sample_thick_label, 1, 2)
-        grid_plot.addWidget(self.sample_thick_input, 2, 2)
-        grid_plot.addWidget(self.gray_radio_button, 1, 3)
-        grid_plot.addWidget(self.color_radio_button, 2, 3)
-        grid_plot.addWidget(plot_button, 3, 1)
-        grid_plot.addWidget(calc_B_button, 3, 2)
-        grid_plot.addWidget(calc_grad_button, 3, 3)
-        grid_plot.addWidget(threshold_label, 4, 1)
-        grid_plot.addWidget(self.threshold_input, 4, 2)
-        grid_plot.addWidget(filter_contours_button, 4, 3)
+        grid_plot.setColumnStretch(2, 1)
+        grid_plot.addWidget(int_width_label, 0, 0)
+        grid_plot.addWidget(self.int_width_input, 1, 0)
+        grid_plot.addWidget(sample_thick_label, 0, 1)
+        grid_plot.addWidget(self.sample_thick_input, 1, 1)
+        grid_plot.addWidget(self.gray_radio_button, 0, 2)
+        grid_plot.addWidget(self.color_radio_button, 1, 2)
+        grid_plot.addWidget(plot_button, 2, 0)
+        grid_plot.addWidget(calc_B_button, 2, 1)
+        grid_plot.addWidget(calc_grad_button, 2, 2)
+        grid_plot.addWidget(threshold_label, 3, 0)
+        grid_plot.addWidget(self.threshold_input, 3, 1)
+        grid_plot.addWidget(filter_contours_button, 3, 2)
 
-        self.int_width_input.setFixedWidth(150)
-        self.sample_thick_input.setFixedWidth(150)
+        # self.int_width_input.setFixedWidth(150)
+        # self.sample_thick_input.setFixedWidth(150)
 
         vbox_panel = QtGui.QVBoxLayout()
         vbox_panel.addLayout(grid_nav)
         vbox_panel.addStretch(1)
         vbox_panel.addLayout(grid_disp)
+        vbox_panel.addStretch(1)
+        vbox_panel.addLayout(grid_manual)
         vbox_panel.addStretch(1)
         vbox_panel.addLayout(grid_align)
         vbox_panel.addStretch(1)
@@ -422,18 +486,20 @@ class TriangulateWidget(QtGui.QWidget):
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
-        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
+        is_modified = self.manual_mode_checkbox.isChecked()
+        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked, mod=is_modified)
 
     def goToNextImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
-        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
+        is_modified = self.manual_mode_checkbox.isChecked()
+        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked, mod=is_modified)
 
     def flip_image_h(self):
         imsup.flip_image_h(self.display.image)
-        self.display.setImage()
+        self.display.setImage(buf=self.manual_mode_checkbox.isChecked())
 
     # def cropFragment(self):
     #     [pt1, pt2] = self.display.pointSets[self.display.image.numInSeries - 1][:2]
@@ -541,6 +607,7 @@ class TriangulateWidget(QtGui.QWidget):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
+        # is_modified = self.modify_mode_checkbox.isChecked()
         self.display.setImage(dispAmp=is_amp_checked, logScale=is_log_scale_checked, color=is_color_checked)
 
     def unwrap_img_phase(self):
@@ -600,6 +667,70 @@ class TriangulateWidget(QtGui.QWidget):
             child.deleteLater()
         self.display.pointSets[self.display.image.numInSeries - 1][:] = []
         self.display.repaint()
+
+    def move_left(self):
+        n_px = int(self.px_shift_input.text())
+        self.move_image([0, -n_px])
+
+    def move_right(self):
+        n_px = int(self.px_shift_input.text())
+        self.move_image([0, n_px])
+
+    def move_up(self):
+        n_px = int(self.px_shift_input.text())
+        self.move_image([-n_px, 0])
+
+    def move_down(self):
+        n_px = int(self.px_shift_input.text())
+        self.move_image([n_px, 0])
+
+    def move_image(self, shift):
+        self.modify_image(shift, 0)
+
+    def rot_left(self):
+        ang = float(self.rot_angle_input.text())
+        self.rotate_image(ang)
+
+    def rot_right(self):
+        ang = float(self.rot_angle_input.text())
+        self.rotate_image(-ang)
+
+    def rotate_image(self, rot):
+        self.modify_image([0, 0], rot)
+
+    # inny sposob - zamiast robienia zamieszania z bufferem:
+    # w momencie zaznaczenia 'manual mode' kopia oryginalu danego obrazu jest zapisywana
+    # jako obiekt klasy TriangulateWidget (czyli mamy oddzielny obiekt typu ImageWithBuffer,
+    # na ktorym mozemy bez przeszkod dzialac)
+    def modify_image(self, shift=list([0, 0]), rot=0):
+        if not self.manual_mode_checkbox.isChecked():
+            return
+
+        curr_img = self.display.image
+        prev_shift = curr_img.shift
+        total_shift = list(np.array(prev_shift) + np.array(shift))
+        prev_rot = curr_img.rot
+        total_rot = prev_rot + rot
+
+        shifted_img = cc.shift_am_ph_image(curr_img, total_shift)
+        rotated_img = tr.RotateImageSki(shifted_img, total_rot)
+
+        is_amp_checked = self.amp_radio_button.isChecked()
+        if is_amp_checked:
+            curr_img.buffer = np.copy(rotated_img.amPh.am)
+        else:
+            curr_img.buffer = np.copy(rotated_img.amPh.ph)
+
+        curr_img.shift = total_shift
+        curr_img.rot = total_rot
+        self.display.setImage(buf=True)
+
+    def apply_changes(self):
+        if not self.modify_mode_checkbox.isChecked():
+            return
+        self.display.image.UpdateImageFromBuffer()      # powinno byc rownoczesnie update_amp() i update_phs()
+                                                        # buffer powinien byc typu ComplexAmPhMatrix?
+        print('Changes applied!')
 
     def align_images(self):
         if self.shift_radio_button.isChecked():
@@ -820,6 +951,8 @@ class TriangulateWidget(QtGui.QWidget):
         user_points1 = CalcTopLeftCoordsForSetOfPoints(curr_img.width, real_points1)
         user_points2 = CalcTopLeftCoordsForSetOfPoints(curr_img.width, real_points2)
 
+        self.warp_points = [ user_points1, user_points2 ]
+
         if more_accurate:
             n_div = const.nDivForUnwarp
             frag_dim_size = curr_img.width // n_div
@@ -855,6 +988,17 @@ class TriangulateWidget(QtGui.QWidget):
         tmp_img_list.UpdateLinks()
         self.display.pointSets.insert(curr_num, [])
         self.goToNextImage()
+
+    def rewarp(self):
+        curr_img = self.display.image
+        user_pts1 = self.warp_points[0]
+        user_pts2 = self.warp_points[1]
+
+        src = np.array(user_pts1)
+        dst = np.array(user_pts2)
+
+        warped_img = tr.WarpImage(curr_img, src, dst)
+        self.insert_img_after_curr(warped_img)
 
     def insert_img_after_curr(self, img):
         curr_num = self.display.image.numInSeries

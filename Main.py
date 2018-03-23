@@ -7,8 +7,6 @@ print('CUDA device in use: ' + dev.name.decode())
 
 # Potrzebne jeszcze:
 # - podczas zoomowania obrazu powinienem zmieniac zapisana wartosc wielkosci piksela
-# - flip nie dziala na amplitude (?)
-# - zrobic re-warp tak samo jak re-shift i re-rotate
 # - kontrola jasnosci, gammy i kontrastu
 
 gui.RunTriangulationWindow()
