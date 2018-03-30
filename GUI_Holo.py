@@ -65,16 +65,15 @@ class LabelExt(QtGui.QLabel):
             lab.move(pos.x()+4, pos.y()+4)
             lab.show()
 
-    def setImage(self, dispAmp=True, logScale=False, color=False, buf=False):
+    def setImage(self, dispAmp=True, logScale=False, color=False):
         self.image.MoveToCPU()
 
-        if not buf:
-            if dispAmp:
-                self.image.buffer = np.copy(self.image.amPh.am)
-                if logScale:
-                    self.image.buffer = np.log(self.image.buffer)
-            else:
-                self.image.buffer = np.copy(self.image.amPh.ph)
+        if dispAmp:
+            self.image.buffer = np.copy(self.image.amPh.am)
+            if logScale:
+                self.image.buffer = np.log(self.image.buffer)
+        else:
+            self.image.buffer = np.copy(self.image.amPh.ph)
 
         q_image = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
                                self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
@@ -97,7 +96,7 @@ class LabelExt(QtGui.QLabel):
         self.setPixmap(pixmap)
         self.repaint()
 
-    def changeImage(self, toNext=True, dispAmp=True, logScale=False, dispLabs=True, color=False, mod=False):
+    def changeImage(self, toNext=True, dispAmp=True, logScale=False, dispLabs=True, color=False):
         newImage = self.image.next if toNext else self.image.prev
         if newImage is None:
             return
@@ -107,7 +106,7 @@ class LabelExt(QtGui.QLabel):
 
         if len(self.pointSets) < self.image.numInSeries:
             self.pointSets.append([])
-        self.setImage(dispAmp, logScale, color, buf=mod)
+        self.setImage(dispAmp, logScale, color)
 
         labsToDel = self.children()
         for child in labsToDel:
@@ -176,6 +175,8 @@ class TriangulateWidget(QtGui.QWidget):
         image = LoadImageSeriesFromFirstFile(imagePath)
         self.display = LabelExt(self, image)
         self.plot_widget = PlotWidget()
+        self.backup_image = None
+        self.changes_made = []
         self.shift = [0, 0]
         self.rot_angle = 0
         self.mag_coeff = 1.0
@@ -212,53 +213,65 @@ class TriangulateWidget(QtGui.QWidget):
         deleteButton.clicked.connect(self.deleteImage)
         clearButton.clicked.connect(self.clearImage)
 
-        left_button = QtGui.QPushButton(QtGui.QIcon('gui/left.png'), '', self)
-        right_button = QtGui.QPushButton(QtGui.QIcon('gui/right.png'), '', self)
-        up_button = QtGui.QPushButton(QtGui.QIcon('gui/up.png'), '', self)
-        down_button = QtGui.QPushButton(QtGui.QIcon('gui/down.png'), '', self)
+        self.left_button = QtGui.QPushButton(QtGui.QIcon('gui/left.png'), '', self)
+        self.right_button = QtGui.QPushButton(QtGui.QIcon('gui/right.png'), '', self)
+        self.up_button = QtGui.QPushButton(QtGui.QIcon('gui/up.png'), '', self)
+        self.down_button = QtGui.QPushButton(QtGui.QIcon('gui/down.png'), '', self)
         self.px_shift_input = QtGui.QLineEdit('0', self)
 
-        rot_clockwise_button = QtGui.QPushButton(QtGui.QIcon('gui/rot_right.png'), '', self)
-        rot_counter_clockwise_button = QtGui.QPushButton(QtGui.QIcon('gui/rot_left.png'), '', self)
+        self.rot_clockwise_button = QtGui.QPushButton(QtGui.QIcon('gui/rot_right.png'), '', self)
+        self.rot_counter_clockwise_button = QtGui.QPushButton(QtGui.QIcon('gui/rot_left.png'), '', self)
         self.rot_angle_input = QtGui.QLineEdit('0.0', self)
 
         self.px_shift_input.setFixedWidth(60)
         self.rot_angle_input.setFixedWidth(60)
 
-        left_button.clicked.connect(self.move_left)
-        right_button.clicked.connect(self.move_right)
-        up_button.clicked.connect(self.move_up)
-        down_button.clicked.connect(self.move_down)
+        self.left_button.clicked.connect(self.move_left)
+        self.right_button.clicked.connect(self.move_right)
+        self.up_button.clicked.connect(self.move_up)
+        self.down_button.clicked.connect(self.move_down)
 
-        rot_counter_clockwise_button.clicked.connect(self.rot_left)
-        rot_clockwise_button.clicked.connect(self.rot_right)
+        self.rot_counter_clockwise_button.clicked.connect(self.rot_left)
+        self.rot_clockwise_button.clicked.connect(self.rot_right)
 
-        left_button.setFixedWidth(60)
-        right_button.setFixedWidth(60)
-        up_button.setFixedWidth(60)
-        down_button.setFixedWidth(60)
-        rot_counter_clockwise_button.setFixedWidth(60)
-        rot_clockwise_button.setFixedWidth(60)
+        self.left_button.setFixedWidth(60)
+        self.right_button.setFixedWidth(60)
+        self.up_button.setFixedWidth(60)
+        self.down_button.setFixedWidth(60)
+        self.rot_counter_clockwise_button.setFixedWidth(60)
+        self.rot_clockwise_button.setFixedWidth(60)
 
-        apply_button = QtGui.QPushButton('Apply changes', self)
-        apply_button.clicked.connect(self.apply_changes)
+        self.apply_button = QtGui.QPushButton('Apply changes', self)
+        self.reset_button = QtGui.QPushButton('Reset', self)
+        self.apply_button.clicked.connect(self.apply_changes)
+        self.reset_button.clicked.connect(self.reset_changes)
+
+        self.left_button.setEnabled(False)
+        self.right_button.setEnabled(False)
+        self.up_button.setEnabled(False)
+        self.down_button.setEnabled(False)
+        self.rot_clockwise_button.setEnabled(False)
+        self.rot_counter_clockwise_button.setEnabled(False)
+        self.reset_button.setEnabled(False)
 
         self.manual_mode_checkbox = QtGui.QCheckBox('Manual mode', self)
         self.manual_mode_checkbox.setChecked(False)
+        self.manual_mode_checkbox.clicked.connect(self.create_backup_image)
 
         grid_manual = QtGui.QGridLayout()
-        grid_manual.addWidget(left_button, 2, 1)
-        grid_manual.addWidget(right_button, 2, 3)
-        grid_manual.addWidget(up_button, 1, 2)
-        grid_manual.addWidget(down_button, 3, 2)
+        grid_manual.addWidget(self.left_button, 2, 1)
+        grid_manual.addWidget(self.right_button, 2, 3)
+        grid_manual.addWidget(self.up_button, 1, 2)
+        grid_manual.addWidget(self.down_button, 3, 2)
         grid_manual.addWidget(self.px_shift_input, 2, 2)
 
         grid_manual.addWidget(self.manual_mode_checkbox, 1, 4)
-        grid_manual.addWidget(apply_button, 2, 4)
+        grid_manual.addWidget(self.apply_button, 2, 4)
+        grid_manual.addWidget(self.reset_button, 3, 4)
 
-        grid_manual.addWidget(rot_counter_clockwise_button, 2, 5)
+        grid_manual.addWidget(self.rot_counter_clockwise_button, 2, 5)
         grid_manual.addWidget(self.rot_angle_input, 2, 6)
-        grid_manual.addWidget(rot_clockwise_button, 2, 7)
+        grid_manual.addWidget(self.rot_clockwise_button, 2, 7)
 
         self.shift_radio_button = QtGui.QRadioButton('Shift', self)
         self.rot_radio_button = QtGui.QRadioButton('Rot', self)
@@ -486,20 +499,18 @@ class TriangulateWidget(QtGui.QWidget):
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
-        is_modified = self.manual_mode_checkbox.isChecked()
-        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked, mod=is_modified)
+        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
     def goToNextImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
-        is_modified = self.manual_mode_checkbox.isChecked()
-        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked, mod=is_modified)
+        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
     def flip_image_h(self):
         imsup.flip_image_h(self.display.image)
-        self.display.setImage(buf=self.manual_mode_checkbox.isChecked())
+        self.display.setImage()
 
     # def cropFragment(self):
     #     [pt1, pt2] = self.display.pointSets[self.display.image.numInSeries - 1][:2]
@@ -668,6 +679,25 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.pointSets[self.display.image.numInSeries - 1][:] = []
         self.display.repaint()
 
+    def create_backup_image(self):
+        if self.manual_mode_checkbox.isChecked():
+            self.backup_image = imsup.copy_am_ph_image(self.display.image)
+            self.left_button.setEnabled(True)
+            self.right_button.setEnabled(True)
+            self.up_button.setEnabled(True)
+            self.down_button.setEnabled(True)
+            self.rot_clockwise_button.setEnabled(True)
+            self.rot_counter_clockwise_button.setEnabled(True)
+            self.reset_button.setEnabled(True)
+        else:
+            self.left_button.setEnabled(False)
+            self.right_button.setEnabled(False)
+            self.up_button.setEnabled(False)
+            self.down_button.setEnabled(False)
+            self.rot_clockwise_button.setEnabled(False)
+            self.rot_counter_clockwise_button.setEnabled(False)
+            self.reset_button.setEnabled(False)
+
     def move_left(self):
         n_px = int(self.px_shift_input.text())
         self.move_image([0, -n_px])
@@ -685,7 +715,20 @@ class TriangulateWidget(QtGui.QWidget):
         self.move_image([n_px, 0])
 
     def move_image(self, shift):
-        self.modify_image(shift, 0)
+        bckp = self.backup_image
+        curr = self.display.image
+        total_shift = list(np.array(curr.shift) + np.array(shift))
+
+        if curr.rot != 0:
+            tmp = tr.RotateImageSki(bckp, curr.rot)
+            shifted_img = cc.shift_am_ph_image(tmp, total_shift)
+        else:
+            shifted_img = cc.shift_am_ph_image(bckp, total_shift)
+
+        curr.amPh.am = np.copy(shifted_img.amPh.am)
+        curr.amPh.ph = np.copy(shifted_img.amPh.ph)
+        curr.shift = total_shift
+        self.display.setImage()
 
     def rot_left(self):
         ang = float(self.rot_angle_input.text())
@@ -696,41 +739,35 @@ class TriangulateWidget(QtGui.QWidget):
         self.rotate_image(-ang)
 
     def rotate_image(self, rot):
-        self.modify_image([0, 0], rot)
+        bckp = self.backup_image
+        curr = self.display.image
+        total_rot = curr.rot + rot
 
-    # inny sposob - zamiast robienia zamieszania z bufferem:
-    # w momencie zaznaczenia 'manual mode' kopia oryginalu danego obrazu jest zapisywana
-    # jako obiekt klasy TriangulateWidget (czyli mamy oddzielny obiekt typu ImageWithBuffer,
-    # na ktorym mozemy bez przeszkod dzialac)
-    def modify_image(self, shift=list([0, 0]), rot=0):
-        if not self.manual_mode_checkbox.isChecked():
-            return
-
-        curr_img = self.display.image
-        prev_shift = curr_img.shift
-        total_shift = list(np.array(prev_shift) + np.array(shift))
-        prev_rot = curr_img.rot
-        total_rot = prev_rot + rot
-
-        shifted_img = cc.shift_am_ph_image(curr_img, total_shift)
-        rotated_img = tr.RotateImageSki(shifted_img, total_rot)
-
-        is_amp_checked = self.amp_radio_button.isChecked()
-        if is_amp_checked:
-            curr_img.buffer = np.copy(rotated_img.amPh.am)
+        if curr.shift != 0:
+            tmp = cc.shift_am_ph_image(bckp, curr.shift)
+            rotated_img = tr.RotateImageSki(tmp, total_rot)
         else:
-            curr_img.buffer = np.copy(rotated_img.amPh.ph)
+            rotated_img = tr.RotateImageSki(bckp, total_rot)
 
-        curr_img.shift = total_shift
-        curr_img.rot = total_rot
-        self.display.setImage(buf=True)
+        curr.amPh.am = np.copy(rotated_img.amPh.am)
+        curr.amPh.ph = np.copy(rotated_img.amPh.ph)
+        curr.rot = total_rot
+        self.display.setImage()
+
+    def repeat_prev_mods(self):
+        curr = imsup.copy_am_ph_image(self.backup_image)
+        for mod in self.changes_made:
+            curr = modify_image(curr, mod[:2], bool(mod[2]))
+        self.display.image = curr
 
     def apply_changes(self):
-        if not self.modify_mode_checkbox.isChecked():
-            return
-        self.display.image.UpdateImageFromBuffer()      # powinno byc rownoczesnie update_amp() i update_phs()
-                                                        # buffer powinien byc typu ComplexAmPhMatrix?
-        print('Changes applied!')
+        self.backup_image = None
+
+    def reset_changes(self):
+        self.display.image = imsup.copy_am_ph_image(self.backup_image)
+        self.backup_image = None
+        # self.changes_made = []
+        self.display.setImage()
 
     def align_images(self):
         if self.shift_radio_button.isChecked():
@@ -1324,6 +1361,16 @@ def zoom_fragment(img, coords):
     zoom_img.px_dim *= zoom_factor
     # self.insert_img_after_curr(zoom_img)
     return zoom_img
+
+# --------------------------------------------------------
+
+def modify_image(img, mod=list([0, 0]), is_shift=True):
+    if is_shift:
+        mod_img = cc.shift_am_ph_image(img, mod)
+    else:
+        mod_img = tr.RotateImageSki(img, mod[0])
+
+    return mod_img
 
 # --------------------------------------------------------
 
