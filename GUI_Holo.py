@@ -246,13 +246,7 @@ class TriangulateWidget(QtGui.QWidget):
         self.apply_button.clicked.connect(self.apply_changes)
         self.reset_button.clicked.connect(self.reset_changes)
 
-        self.left_button.setEnabled(False)
-        self.right_button.setEnabled(False)
-        self.up_button.setEnabled(False)
-        self.down_button.setEnabled(False)
-        self.rot_clockwise_button.setEnabled(False)
-        self.rot_counter_clockwise_button.setEnabled(False)
-        self.reset_button.setEnabled(False)
+        self.disable_manual_panel()
 
         self.manual_mode_checkbox = QtGui.QCheckBox('Manual mode', self)
         self.manual_mode_checkbox.setChecked(False)
@@ -494,11 +488,38 @@ class TriangulateWidget(QtGui.QWidget):
         self.show()
         self.setFixedSize(self.width(), self.height())  # disable window resizing
 
+    def enable_manual_panel(self):
+        self.left_button.setEnabled(True)
+        self.right_button.setEnabled(True)
+        self.up_button.setEnabled(True)
+        self.down_button.setEnabled(True)
+        self.rot_clockwise_button.setEnabled(True)
+        self.rot_counter_clockwise_button.setEnabled(True)
+        self.px_shift_input.setEnabled(True)
+        self.rot_angle_input.setEnabled(True)
+        self.apply_button.setEnabled(True)
+        self.reset_button.setEnabled(True)
+
+    def disable_manual_panel(self):
+        self.left_button.setEnabled(False)
+        self.right_button.setEnabled(False)
+        self.up_button.setEnabled(False)
+        self.down_button.setEnabled(False)
+        self.rot_clockwise_button.setEnabled(False)
+        self.rot_counter_clockwise_button.setEnabled(False)
+        self.px_shift_input.setEnabled(False)
+        self.rot_angle_input.setEnabled(False)
+        self.apply_button.setEnabled(False)
+        self.reset_button.setEnabled(False)
+
     def goToPrevImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
+        if self.display.image.prev is not None:
+            self.manual_mode_checkbox.setChecked(False)
+            self.disable_manual_panel()
         self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
     def goToNextImage(self):
@@ -506,6 +527,9 @@ class TriangulateWidget(QtGui.QWidget):
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
+        if self.display.image.next is not None:
+            self.manual_mode_checkbox.setChecked(False)
+            self.disable_manual_panel()
         self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
     def flip_image_h(self):
@@ -679,24 +703,13 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.pointSets[self.display.image.numInSeries - 1][:] = []
         self.display.repaint()
 
+    # ta funkcja powinna byc wywolywana tylko jezeli kopia zapasowa obrazu nie zostala jeszcze stworzona
     def create_backup_image(self):
         if self.manual_mode_checkbox.isChecked():
             self.backup_image = imsup.copy_am_ph_image(self.display.image)
-            self.left_button.setEnabled(True)
-            self.right_button.setEnabled(True)
-            self.up_button.setEnabled(True)
-            self.down_button.setEnabled(True)
-            self.rot_clockwise_button.setEnabled(True)
-            self.rot_counter_clockwise_button.setEnabled(True)
-            self.reset_button.setEnabled(True)
+            self.enable_manual_panel()
         else:
-            self.left_button.setEnabled(False)
-            self.right_button.setEnabled(False)
-            self.up_button.setEnabled(False)
-            self.down_button.setEnabled(False)
-            self.rot_clockwise_button.setEnabled(False)
-            self.rot_counter_clockwise_button.setEnabled(False)
-            self.reset_button.setEnabled(False)
+            self.disable_manual_panel()
 
     def move_left(self):
         n_px = int(self.px_shift_input.text())
