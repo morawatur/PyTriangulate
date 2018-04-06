@@ -80,6 +80,7 @@ class Image:
         self.width = width
         self.height = height
         self.size = width * height
+        self.name = ''
         if memType == self.mem['CPU']:
             # self.reIm = np.empty((height, width), dtype=np.complex64)
             self.reIm = np.zeros((height, width), dtype=np.complex64)
@@ -343,16 +344,54 @@ def ScaleAmpImages(images):
 #-------------------------------------------------------------------
 
 # should handle also GPU images
-def PrepareImageToDisplay(img, capVar, log=False):
+def PrepareImageToDisplay(img, capVar, log=False, color=False):
     dt = img.cmpRepr
     img.ReIm2AmPh()
     imgVar = img.amPh.am if capVar == Image.capVar['AM'] else img.amPh.ph
     img.ChangeComplexRepr(dt)
+
     if log:
         imgVar = np.log10(imgVar)
+
     imgVarScaled = ScaleImage(imgVar, 0.0, 255.0)
-    imgToDisp = im.fromarray(imgVarScaled.astype(np.uint8))
+
+    if not color:
+        imgToDisp = im.fromarray(imgVarScaled.astype(np.uint8))
+    else:
+        imgVarCol = grayscale_to_rgb(imgVarScaled)
+        imgToDisp = im.fromarray(imgVarCol.astype(np.uint8), 'RGB')
+
     return imgToDisp
+
+#-------------------------------------------------------------------
+
+def gs_to_rgb(gs_val, rgb_cm):
+    return rgb_cm[int(gs_val)]
+
+#-------------------------------------------------------------------
+
+def grayscale_to_rgb(gs_arr):
+    gs_arr[gs_arr < 0] = 0
+    gs_arr[gs_arr > 255] = 255
+
+    step = 6
+    inc_range = np.arange(0, 256, step)
+    dec_range = np.arange(255, -1, -step)
+
+    bcm1 = [[0, i, 255] for i in inc_range]
+    gcm1 = [[0, 255, i] for i in dec_range]
+    gcm2 = [[i, 255, 0] for i in inc_range]
+    rcm1 = [[255, i, 0] for i in dec_range]
+    rcm2 = [[255, 0, i] for i in inc_range]
+    bcm2 = [[i, 0, 255] for i in dec_range]
+    rgb_cm = bcm1 + gcm1 + gcm2 + rcm1 + rcm2 + bcm2
+    rgb_cm = np.array(rgb_cm[:256])
+
+    gs_arr_1d = gs_arr.reshape((1, -1))
+    rgb_arr_1d = rgb_cm[list(gs_arr_1d.astype(np.uint8))]
+    rgb_arr = rgb_arr_1d.reshape((gs_arr.shape[0], gs_arr.shape[1], 3))
+
+    return rgb_arr
 
 #-------------------------------------------------------------------
 
@@ -364,9 +403,9 @@ def DisplayAmpImage(img, log=False):
 
 # -------------------------------------------------------------------
 
-def SaveAmpImage(img, fPath, log=False):
+def SaveAmpImage(img, fPath, log=False, color=False):
     img.MoveToCPU()     # !!!
-    imgToSave = PrepareImageToDisplay(img, Image.capVar['AM'], log)
+    imgToSave = PrepareImageToDisplay(img, Image.capVar['AM'], log, color)
     img.MoveToGPU()
     imgToSave.save(fPath)
 
@@ -380,9 +419,9 @@ def DisplayPhaseImage(img, log=False):
 
 # -------------------------------------------------------------------
 
-def SavePhaseImage(img, fPath, log=False):
+def SavePhaseImage(img, fPath, log=False, color=False):
     img.MoveToCPU()     # !!!
-    imgToSave = PrepareImageToDisplay(img, Image.capVar['PH'], log)
+    imgToSave = PrepareImageToDisplay(img, Image.capVar['PH'], log, color)
     img.MoveToGPU()
     imgToSave.save(fPath)
 

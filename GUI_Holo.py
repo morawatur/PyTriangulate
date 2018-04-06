@@ -199,17 +199,38 @@ class TriangulateWidget(QtGui.QWidget):
         rswap_button.clicked.connect(self.swap_right)
 
         flipButton = QtGui.QPushButton('Flip', self)
+
+        name_it_button = QtGui.QPushButton('Name it!', self)
+        self.name_input = QtGui.QLineEdit('ref', self)
+
         zoomButton = QtGui.QPushButton('Zoom N images', self)
         self.n_to_zoom_input = QtGui.QLineEdit('1', self)
 
+        hbox_name = QtGui.QHBoxLayout()
+        hbox_name.addWidget(name_it_button)
+        hbox_name.addWidget(self.name_input)
+
+        hbox_zoom = QtGui.QHBoxLayout()
+        hbox_zoom.addWidget(zoomButton)
+        hbox_zoom.addWidget(self.n_to_zoom_input)
+
+        name_it_button.setFixedWidth(115)
+        zoomButton.setFixedWidth(115)
+        self.name_input.setFixedWidth(115)
+        self.n_to_zoom_input.setFixedWidth(115)
+
         flipButton.clicked.connect(self.flip_image_h)
+        name_it_button.clicked.connect(self.set_image_name)
         zoomButton.clicked.connect(self.zoom_n_fragments)
 
         exportButton = QtGui.QPushButton('Export', self)
+        export_all_button = QtGui.QPushButton('Export all', self)
         deleteButton = QtGui.QPushButton('Delete', self)
         clearButton = QtGui.QPushButton('Clear', self)
+        pointless_button = QtGui.QPushButton('Pointless button', self)
 
         exportButton.clicked.connect(self.export_image)
+        export_all_button.clicked.connect(self.export_all)
         deleteButton.clicked.connect(self.deleteImage)
         clearButton.clicked.connect(self.clearImage)
 
@@ -291,9 +312,6 @@ class TriangulateWidget(QtGui.QWidget):
         remag_button.clicked.connect(self.remagnify)
         rewarp_button.clicked.connect(self.rewarp)
 
-        fname_label = QtGui.QLabel('File name', self)
-        self.fname_input = QtGui.QLineEdit('img', self)
-
         holo_no_ref_1_button = QtGui.QPushButton('FFT', self)
         holo_no_ref_2_button = QtGui.QPushButton('Holo', self)
         holo_with_ref_2_button = QtGui.QPushButton('Holo+Ref', self)
@@ -303,6 +321,10 @@ class TriangulateWidget(QtGui.QWidget):
         holo_no_ref_2_button.clicked.connect(self.rec_holo_no_ref_2)
         holo_with_ref_2_button.clicked.connect(self.rec_holo_with_ref_2)
         holo_no_ref_3_button.clicked.connect(self.rec_holo_no_ref_3)
+
+        hbox_holo = QtGui.QHBoxLayout()
+        hbox_holo.addWidget(holo_no_ref_2_button)
+        hbox_holo.addWidget(holo_with_ref_2_button)
 
         self.show_lines_checkbox = QtGui.QCheckBox('Show lines', self)
         self.show_lines_checkbox.setChecked(True)
@@ -316,11 +338,11 @@ class TriangulateWidget(QtGui.QWidget):
         self.log_scale_checkbox.setChecked(False)
         self.log_scale_checkbox.toggled.connect(self.update_display)
 
-        self.phs_unwrap_checkbox = QtGui.QCheckBox('Unwrap phase', self)
-        self.phs_unwrap_checkbox.setChecked(False)
+        unwrap_button = QtGui.QPushButton('Unwrap phase', self)
+        wrap_button = QtGui.QPushButton('Wrap phase', self)
 
-        phs_uw_ok_button = QtGui.QPushButton('OK', self)
-        phs_uw_ok_button.clicked.connect(self.unwrap_img_phase)
+        unwrap_button.clicked.connect(self.unwrap_img_phase)
+        wrap_button.clicked.connect(self.wrap_img_phase)
 
         self.amp_radio_button = QtGui.QRadioButton('Amplitude', self)
         self.phs_radio_button = QtGui.QRadioButton('Phase', self)
@@ -332,6 +354,21 @@ class TriangulateWidget(QtGui.QWidget):
         amp_phs_group = QtGui.QButtonGroup(self)
         amp_phs_group.addButton(self.amp_radio_button)
         amp_phs_group.addButton(self.phs_radio_button)
+
+        self.gray_radio_button = QtGui.QRadioButton('Grayscale', self)
+        self.color_radio_button = QtGui.QRadioButton('Color', self)
+        self.gray_radio_button.setChecked(True)
+
+        self.gray_radio_button.toggled.connect(self.update_display)
+        self.color_radio_button.toggled.connect(self.update_display)
+
+        color_group = QtGui.QButtonGroup(self)
+        color_group.addButton(self.gray_radio_button)
+        color_group.addButton(self.color_radio_button)
+
+        fname_label = QtGui.QLabel('File name', self)
+        self.fname_input = QtGui.QLineEdit(self.display.image.name, self)
+        self.fname_input.setFixedWidth(150)
 
         aperture_label = QtGui.QLabel('Aperture [px]', self)
         self.aperture_input = QtGui.QLineEdit(str(const.aperture), self)
@@ -345,12 +382,13 @@ class TriangulateWidget(QtGui.QWidget):
         sum_button.clicked.connect(self.calc_phs_sum)
         diff_button.clicked.connect(self.calc_phs_diff)
 
+        amp_factor_label = QtGui.QLabel('Amp. factor', self)
         self.amp_factor_input = QtGui.QLineEdit('2.0', self)
 
         amplify_button = QtGui.QPushButton('Amplify', self)
         amplify_button.clicked.connect(self.amplify_phase)
 
-        int_width_label = QtGui.QLabel('Profile width', self)
+        int_width_label = QtGui.QLabel('Profile width [px]', self)
         self.int_width_input = QtGui.QLineEdit('1', self)
 
         plot_button = QtGui.QPushButton('Plot profile', self)
@@ -365,17 +403,6 @@ class TriangulateWidget(QtGui.QWidget):
         calc_B_button.clicked.connect(self.calc_magnetic_field)
         calc_grad_button.clicked.connect(self.calc_phase_gradient)
 
-        self.gray_radio_button = QtGui.QRadioButton('Grayscale', self)
-        self.color_radio_button = QtGui.QRadioButton('Color', self)
-        self.gray_radio_button.setChecked(True)
-
-        self.gray_radio_button.toggled.connect(self.update_display)
-        self.color_radio_button.toggled.connect(self.update_display)
-
-        color_group = QtGui.QButtonGroup(self)
-        color_group.addButton(self.gray_radio_button)
-        color_group.addButton(self.color_radio_button)
-
         threshold_label = QtGui.QLabel('Int. threshold [0-1]', self)
         self.threshold_input = QtGui.QLineEdit('0.9', self)
 
@@ -389,21 +416,28 @@ class TriangulateWidget(QtGui.QWidget):
         grid_nav.addWidget(rswap_button, 1, 1)
         grid_nav.addWidget(flipButton, 2, 0)
         grid_nav.addWidget(clearButton, 2, 1)
-        grid_nav.addWidget(exportButton, 3, 0)
         grid_nav.addWidget(deleteButton, 3, 1)
+        grid_nav.addLayout(hbox_zoom, 3, 0)
+        grid_nav.addLayout(hbox_name, 4, 0)
+        grid_nav.addWidget(pointless_button, 4, 1)
 
         grid_disp = QtGui.QGridLayout()
-        grid_disp.addWidget(zoomButton, 0, 0)
-        grid_disp.addWidget(self.n_to_zoom_input, 0, 1)
+        grid_disp.setColumnStretch(0, 0)
+        grid_disp.setColumnStretch(1, 0)
+        grid_disp.setColumnStretch(2, 0)
         grid_disp.addWidget(self.show_lines_checkbox, 1, 0)
         grid_disp.addWidget(self.show_labels_checkbox, 2, 0)
         grid_disp.addWidget(self.log_scale_checkbox, 3, 0)
         grid_disp.addWidget(self.amp_radio_button, 1, 1)
         grid_disp.addWidget(self.phs_radio_button, 2, 1)
-        grid_disp.addWidget(self.phs_unwrap_checkbox, 3, 1)
-        grid_disp.addWidget(phs_uw_ok_button, 3, 2)
-
-        self.n_to_zoom_input.setFixedWidth(120)
+        grid_disp.addWidget(self.gray_radio_button, 1, 2)
+        grid_disp.addWidget(self.color_radio_button, 2, 2)
+        grid_disp.addWidget(unwrap_button, 3, 1)
+        grid_disp.addWidget(wrap_button, 3, 2)
+        grid_disp.addWidget(fname_label, 0, 3)
+        grid_disp.addWidget(self.fname_input, 1, 3)
+        grid_disp.addWidget(exportButton, 2, 3)
+        grid_disp.addWidget(export_all_button, 3, 3)
 
         vbox_sh_rot_rb = QtGui.QVBoxLayout()
         vbox_sh_rot_rb.addWidget(self.shift_radio_button)
@@ -427,38 +461,30 @@ class TriangulateWidget(QtGui.QWidget):
         grid_align.addWidget(rewarp_button, 2, 2)
 
         grid_holo = QtGui.QGridLayout()
-        grid_holo.addWidget(fname_label, 0, 0)
-        grid_holo.addWidget(self.fname_input, 1, 0)
-        grid_holo.addWidget(aperture_label, 0, 1)
-        grid_holo.addWidget(self.aperture_input, 1, 1)
-        grid_holo.addWidget(hann_win_label, 0, 2)
-        grid_holo.addWidget(self.hann_win_input, 1, 2)
+        grid_holo.addWidget(aperture_label, 0, 0)
+        grid_holo.addWidget(self.aperture_input, 1, 0)
+        grid_holo.addWidget(hann_win_label, 0, 1)
+        grid_holo.addWidget(self.hann_win_input, 1, 1)
         grid_holo.addWidget(holo_no_ref_1_button, 2, 0)
-        grid_holo.addWidget(holo_no_ref_2_button, 2, 1)
-        grid_holo.addWidget(holo_with_ref_2_button, 2, 2)
-        grid_holo.addWidget(holo_no_ref_3_button, 2, 3)
-        grid_holo.addWidget(sum_button, 3, 0)
-        grid_holo.addWidget(diff_button, 3, 1)
-        grid_holo.addWidget(self.amp_factor_input, 3, 2)
-        grid_holo.addWidget(amplify_button, 3, 3)
+        grid_holo.addLayout(hbox_holo, 2, 1)
+        grid_holo.addWidget(holo_no_ref_3_button, 3, 0)
+        grid_holo.addWidget(sum_button, 3, 1)
+        grid_holo.addWidget(diff_button, 3, 2)
+        grid_holo.addWidget(amp_factor_label, 0, 2)
+        grid_holo.addWidget(self.amp_factor_input, 1, 2)
+        grid_holo.addWidget(amplify_button, 2, 2)
 
         grid_plot = QtGui.QGridLayout()
-        grid_plot.setColumnStretch(2, 1)
-        grid_plot.addWidget(int_width_label, 0, 0)
-        grid_plot.addWidget(self.int_width_input, 1, 0)
-        grid_plot.addWidget(sample_thick_label, 0, 1)
-        grid_plot.addWidget(self.sample_thick_input, 1, 1)
-        grid_plot.addWidget(self.gray_radio_button, 0, 2)
-        grid_plot.addWidget(self.color_radio_button, 1, 2)
-        grid_plot.addWidget(plot_button, 2, 0)
-        grid_plot.addWidget(calc_B_button, 2, 1)
-        grid_plot.addWidget(calc_grad_button, 2, 2)
-        grid_plot.addWidget(threshold_label, 3, 0)
-        grid_plot.addWidget(self.threshold_input, 3, 1)
-        grid_plot.addWidget(filter_contours_button, 3, 2)
-
-        # self.int_width_input.setFixedWidth(150)
-        # self.sample_thick_input.setFixedWidth(150)
+        grid_plot.addWidget(sample_thick_label, 0, 0)
+        grid_plot.addWidget(self.sample_thick_input, 1, 0)
+        grid_plot.addWidget(calc_grad_button, 2, 0)
+        grid_plot.addWidget(calc_B_button, 3, 0)
+        grid_plot.addWidget(int_width_label, 0, 1)
+        grid_plot.addWidget(self.int_width_input, 1, 1)
+        grid_plot.addWidget(plot_button, 2, 1)
+        grid_plot.addWidget(threshold_label, 0, 2)
+        grid_plot.addWidget(self.threshold_input, 1, 2)
+        grid_plot.addWidget(filter_contours_button, 2, 2)
 
         vbox_panel = QtGui.QVBoxLayout()
         vbox_panel.addLayout(grid_nav)
@@ -512,12 +538,18 @@ class TriangulateWidget(QtGui.QWidget):
         self.apply_button.setEnabled(False)
         self.reset_button.setEnabled(False)
 
+    def set_image_name(self):
+        self.display.image.name = self.name_input.text()
+        self.fname_input.setText(self.name_input.text())
+
     def goToPrevImage(self):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
         if self.display.image.prev is not None:
+            self.name_input.setText(self.display.image.prev.name)
+            self.fname_input.setText(self.display.image.prev.name)
             self.manual_mode_checkbox.setChecked(False)
             self.disable_manual_panel()
         self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
@@ -528,6 +560,8 @@ class TriangulateWidget(QtGui.QWidget):
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
         if self.display.image.next is not None:
+            self.name_input.setText(self.display.image.next.name)
+            self.fname_input.setText(self.display.image.next.name)
             self.manual_mode_checkbox.setChecked(False)
             self.disable_manual_panel()
         self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
@@ -536,50 +570,41 @@ class TriangulateWidget(QtGui.QWidget):
         imsup.flip_image_h(self.display.image)
         self.display.setImage()
 
-    # def cropFragment(self):
-    #     [pt1, pt2] = self.display.pointSets[self.display.image.numInSeries - 1][:2]
-    #     dispCropCoords = pt1 + pt2
-    #     realCropCoords = imsup.MakeSquareCoords(
-    #         CalcRealTLCoordsForPaddedImage(self.display.image.width, dispCropCoords))
-    #
-    #     imgCurr = self.display.image
-    #     imgCurrCrop = imsup.CropImageROICoords(imgCurr, realCropCoords)
-    #     imgCurrCrop = imsup.CreateImageWithBufferFromImage(imgCurrCrop)
-    #     imgCurrCrop.MoveToCPU()
-    #
-    #     curr_num = self.display.image.numInSeries
-    #     tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-    #
-    #     if imgCurr.prev is not None:
-    #         imgPrev = imgCurr.prev
-    #         imgPrevCrop = imsup.CropImageROICoords(imgPrev, realCropCoords)
-    #         imgPrevCrop = imsup.CreateImageWithBufferFromImage(imgPrevCrop)
-    #         imgPrevCrop.MoveToCPU()
-    #         tmp_img_list.insert(1, imgPrevCrop)
-    #         tmp_img_list.insert(2, imgCurrCrop)
-    #         self.display.pointSets.insert(curr_num, [])
-    #         self.display.pointSets.insert(curr_num+1, [])
-    #     else:
-    #         tmp_img_list = imsup.CreateImageListFromFirstImage(self.display.image)
-    #         tmp_img_list.insert(1, imgCurrCrop)
-    #         self.display.pointSets.insert(curr_num, [])
-    #
-    #     tmp_img_list.UpdateLinks()
-    #     self.goToNextImage()
-
     def export_image(self):
         curr_num = self.display.image.numInSeries
         fname = self.fname_input.text()
         is_amp_checked = self.amp_radio_button.isChecked()
 
+        log = True if self.log_scale_checkbox.isChecked() else False
+        color = True if self.color_radio_button.isChecked() else False
+
         if fname == '':
             fname = 'amp{0}'.format(curr_num) if is_amp_checked else 'phs{0}'.format(curr_num)
 
         if is_amp_checked:
-            imsup.SaveAmpImage(self.display.image, '{0}.png'.format(fname))
+            imsup.SaveAmpImage(self.display.image, '{0}.png'.format(fname), log, color)
         else:
-            imsup.SavePhaseImage(self.display.image, '{0}.png'.format(fname))
+            imsup.SavePhaseImage(self.display.image, '{0}.png'.format(fname), log, color)
         print('Saved image as "{0}.png"'.format(fname))
+
+    def export_all(self):
+        curr_img = imsup.GetFirstImage(self.display.image)
+
+        while curr_img is not None:
+            curr_num = curr_img.numInSeries
+            fname = curr_img.name
+            is_amp_checked = self.amp_radio_button.isChecked()
+
+            if fname == '':
+                fname = 'amp{0}'.format(curr_num) if is_amp_checked else 'phs{0}'.format(curr_num)
+
+            if is_amp_checked:
+                imsup.SaveAmpImage(curr_img, '{0}.png'.format(fname))
+            else:
+                imsup.SavePhaseImage(curr_img, '{0}.png'.format(fname))
+
+            print('Saved image as "{0}.png"'.format(fname))
+            curr_img = curr_img.next
 
     def deleteImage(self):
         curr_img = self.display.image
@@ -604,29 +629,6 @@ class TriangulateWidget(QtGui.QWidget):
         tmp_img_list.UpdateLinks()
         del curr_img
 
-        # curr_img = self.display.image
-        # if curr_img.prev is None and curr_img.next is None:
-        #     return
-        #
-        # del self.display.pointSets[curr_img.numInSeries - 1]
-        #
-        # if curr_img.prev is not None:
-        #     curr_img.prev.next = curr_img.next
-        #
-        # if curr_img.next is not None:
-        #     curr_img.next.prev = curr_img.prev
-        #     tmp = curr_img.next
-        #     while tmp is not None:
-        #         tmp.numInSeries = tmp.prev.numInSeries + 1 if tmp.prev is not None else 1
-        #         tmp = tmp.next
-        #
-        # if curr_img.prev is not None:
-        #     self.goToPrevImage()
-        # else:
-        #     self.goToNextImage()
-        #
-        # del curr_img
-
     def toggle_lines(self):
         self.display.show_lines = not self.display.show_lines
         self.display.repaint()
@@ -642,37 +644,24 @@ class TriangulateWidget(QtGui.QWidget):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
-        # is_modified = self.modify_mode_checkbox.isChecked()
         self.display.setImage(dispAmp=is_amp_checked, logScale=is_log_scale_checked, color=is_color_checked)
 
     def unwrap_img_phase(self):
         curr_img = self.display.image
-        is_phs_unwrap_checked = self.phs_unwrap_checkbox.isChecked()
-
-        if is_phs_unwrap_checked:
-            new_phs = tr.unwrap_phase(curr_img.amPh.ph)
-        else:
-            uw_min = np.min(curr_img.amPh.ph)
-            if uw_min > 0:
-                uw_min = 0
-            new_phs = (curr_img.amPh.ph - uw_min) % (2 * np.pi) - np.pi
-
+        new_phs = tr.unwrap_phase(curr_img.amPh.ph)
         curr_img.amPh.ph = np.copy(new_phs)
         self.update_display()
 
-    # def zoom_two_fragments(self):
-    #     curr_idx = self.display.image.numInSeries - 1
-    #     if len(self.display.pointSets[curr_idx]) < 2:
-    #         return
-    #
-    #     curr_img = self.display.image
-    #     [pt1, pt2] = self.display.pointSets[curr_idx][:2]
-    #     disp_crop_coords = pt1 + pt2
-    #     real_crop_coords = imsup.MakeSquareCoords(CalcRealTLCoords(curr_img.width, disp_crop_coords))
-    #
-    #     if curr_img.prev is not None:
-    #         zoom_fragment(curr_img.prev, real_crop_coords)
-    #     zoom_fragment(curr_img, real_crop_coords)
+    def wrap_img_phase(self):
+        curr_img = self.display.image
+        uw_min = np.min(curr_img.amPh.ph)
+
+        if uw_min > 0:
+            uw_min = 0
+        new_phs = (curr_img.amPh.ph - uw_min) % (2 * np.pi) - np.pi
+
+        curr_img.amPh.ph = np.copy(new_phs)
+        self.update_display()
 
     def zoom_n_fragments(self):
         curr_idx = self.display.image.numInSeries - 1
@@ -703,10 +692,10 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.pointSets[self.display.image.numInSeries - 1][:] = []
         self.display.repaint()
 
-    # ta funkcja powinna byc wywolywana tylko jezeli kopia zapasowa obrazu nie zostala jeszcze stworzona
     def create_backup_image(self):
         if self.manual_mode_checkbox.isChecked():
-            self.backup_image = imsup.copy_am_ph_image(self.display.image)
+            if self.backup_image is None:
+                self.backup_image = imsup.copy_am_ph_image(self.display.image)
             self.enable_manual_panel()
         else:
             self.disable_manual_panel()
