@@ -186,11 +186,11 @@ class TriangulateWidget(QtGui.QWidget):
     def initUI(self):
         self.plot_widget.canvas.setFixedHeight(250)
 
-        prevButton = QtGui.QPushButton('Prev', self)
-        nextButton = QtGui.QPushButton('Next', self)
+        prev_button = QtGui.QPushButton('Prev', self)
+        next_button = QtGui.QPushButton('Next', self)
 
-        prevButton.clicked.connect(self.goToPrevImage)
-        nextButton.clicked.connect(self.goToNextImage)
+        prev_button.clicked.connect(self.go_to_prev_image)
+        next_button.clicked.connect(self.go_to_next_image)
 
         lswap_button = QtGui.QPushButton('L-Swap', self)
         rswap_button = QtGui.QPushButton('R-Swap', self)
@@ -198,12 +198,12 @@ class TriangulateWidget(QtGui.QWidget):
         lswap_button.clicked.connect(self.swap_left)
         rswap_button.clicked.connect(self.swap_right)
 
-        flipButton = QtGui.QPushButton('Flip', self)
+        flip_button = QtGui.QPushButton('Flip', self)
 
         name_it_button = QtGui.QPushButton('Name it!', self)
         self.name_input = QtGui.QLineEdit('ref', self)
 
-        zoomButton = QtGui.QPushButton('Zoom N images', self)
+        zoom_button = QtGui.QPushButton('Zoom N images', self)
         self.n_to_zoom_input = QtGui.QLineEdit('1', self)
 
         hbox_name = QtGui.QHBoxLayout()
@@ -211,28 +211,29 @@ class TriangulateWidget(QtGui.QWidget):
         hbox_name.addWidget(self.name_input)
 
         hbox_zoom = QtGui.QHBoxLayout()
-        hbox_zoom.addWidget(zoomButton)
+        hbox_zoom.addWidget(zoom_button)
         hbox_zoom.addWidget(self.n_to_zoom_input)
 
         name_it_button.setFixedWidth(115)
-        zoomButton.setFixedWidth(115)
+        zoom_button.setFixedWidth(115)
         self.name_input.setFixedWidth(115)
         self.n_to_zoom_input.setFixedWidth(115)
 
-        flipButton.clicked.connect(self.flip_image_h)
+        flip_button.clicked.connect(self.flip_image_h)
         name_it_button.clicked.connect(self.set_image_name)
-        zoomButton.clicked.connect(self.zoom_n_fragments)
+        zoom_button.clicked.connect(self.zoom_n_fragments)
 
-        exportButton = QtGui.QPushButton('Export', self)
+        export_button = QtGui.QPushButton('Export', self)
         export_all_button = QtGui.QPushButton('Export all', self)
-        deleteButton = QtGui.QPushButton('Delete', self)
-        clearButton = QtGui.QPushButton('Clear', self)
-        pointless_button = QtGui.QPushButton('Pointless button', self)
+        delete_button = QtGui.QPushButton('Delete', self)
+        clear_button = QtGui.QPushButton('Clear', self)
+        undo_button = QtGui.QPushButton('Undo', self)
 
-        exportButton.clicked.connect(self.export_image)
+        export_button.clicked.connect(self.export_image)
         export_all_button.clicked.connect(self.export_all)
-        deleteButton.clicked.connect(self.deleteImage)
-        clearButton.clicked.connect(self.clearImage)
+        delete_button.clicked.connect(self.delete_image)
+        clear_button.clicked.connect(self.clear_image)
+        undo_button.clicked.connect(self.remove_last_point)
 
         self.left_button = QtGui.QPushButton(QtGui.QIcon('gui/left.png'), '', self)
         self.right_button = QtGui.QPushButton(QtGui.QIcon('gui/right.png'), '', self)
@@ -410,16 +411,16 @@ class TriangulateWidget(QtGui.QWidget):
         filter_contours_button.clicked.connect(self.filter_contours)
 
         grid_nav = QtGui.QGridLayout()
-        grid_nav.addWidget(prevButton, 0, 0)
-        grid_nav.addWidget(nextButton, 0, 1)
+        grid_nav.addWidget(prev_button, 0, 0)
+        grid_nav.addWidget(next_button, 0, 1)
         grid_nav.addWidget(lswap_button, 1, 0)
         grid_nav.addWidget(rswap_button, 1, 1)
-        grid_nav.addWidget(flipButton, 2, 0)
-        grid_nav.addWidget(clearButton, 2, 1)
-        grid_nav.addWidget(deleteButton, 3, 1)
+        grid_nav.addWidget(flip_button, 2, 0)
+        grid_nav.addWidget(clear_button, 2, 1)
+        grid_nav.addWidget(delete_button, 3, 1)
         grid_nav.addLayout(hbox_zoom, 3, 0)
         grid_nav.addLayout(hbox_name, 4, 0)
-        grid_nav.addWidget(pointless_button, 4, 1)
+        grid_nav.addWidget(undo_button, 4, 1)
 
         grid_disp = QtGui.QGridLayout()
         grid_disp.setColumnStretch(0, 0)
@@ -436,7 +437,7 @@ class TriangulateWidget(QtGui.QWidget):
         grid_disp.addWidget(wrap_button, 3, 2)
         grid_disp.addWidget(fname_label, 0, 3)
         grid_disp.addWidget(self.fname_input, 1, 3)
-        grid_disp.addWidget(exportButton, 2, 3)
+        grid_disp.addWidget(export_button, 2, 3)
         grid_disp.addWidget(export_all_button, 3, 3)
 
         vbox_sh_rot_rb = QtGui.QVBoxLayout()
@@ -542,7 +543,7 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.image.name = self.name_input.text()
         self.fname_input.setText(self.name_input.text())
 
-    def goToPrevImage(self):
+    def go_to_prev_image(self):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
@@ -554,7 +555,7 @@ class TriangulateWidget(QtGui.QWidget):
             self.disable_manual_panel()
         self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
-    def goToNextImage(self):
+    def go_to_next_image(self):
         is_amp_checked = self.amp_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
@@ -606,7 +607,7 @@ class TriangulateWidget(QtGui.QWidget):
             print('Saved image as "{0}.png"'.format(fname))
             curr_img = curr_img.next
 
-    def deleteImage(self):
+    def delete_image(self):
         curr_img = self.display.image
         if curr_img.prev is None and curr_img.next is None:
             return
@@ -685,11 +686,19 @@ class TriangulateWidget(QtGui.QWidget):
 
         img_list.UpdateLinks()
 
-    def clearImage(self):
+    def clear_image(self):
         labToDel = self.display.children()
         for child in labToDel:
             child.deleteLater()
         self.display.pointSets[self.display.image.numInSeries - 1][:] = []
+        self.display.repaint()
+
+    def remove_last_point(self):
+        all_labels = self.display.children()
+        last_label = all_labels[-1]
+        last_label.deleteLater()
+        curr_idx = self.display.image.numInSeries - 1
+        del self.display.pointSets[curr_idx][-1]
         self.display.repaint()
 
     def create_backup_image(self):
