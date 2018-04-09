@@ -618,10 +618,10 @@ class TriangulateWidget(QtGui.QWidget):
 
         if curr_img.prev is not None:
             curr_img.prev.next = None
-            self.goToPrevImage()
+            self.go_to_prev_image()
         else:
             curr_img.next.prev = None
-            self.goToNextImage()
+            self.go_to_next_image()
             if curr_idx == 0:
                 self.display.image.numInSeries = 1
 
@@ -694,10 +694,13 @@ class TriangulateWidget(QtGui.QWidget):
         self.display.repaint()
 
     def remove_last_point(self):
-        all_labels = self.display.children()
-        last_label = all_labels[-1]
-        last_label.deleteLater()
         curr_idx = self.display.image.numInSeries - 1
+        if len(self.display.pointSets[curr_idx]) == 0:
+            return
+        all_labels = self.display.children()
+        if len(all_labels) > 0:
+            last_label = all_labels[-1]
+            last_label.deleteLater()
         del self.display.pointSets[curr_idx][-1]
         self.display.repaint()
 
@@ -1035,7 +1038,7 @@ class TriangulateWidget(QtGui.QWidget):
         tmp_img_list.insert(1, img_warp)
         tmp_img_list.UpdateLinks()
         self.display.pointSets.insert(curr_num, [])
-        self.goToNextImage()
+        self.go_to_next_image()
 
     def rewarp(self):
         curr_img = self.display.image
@@ -1054,7 +1057,7 @@ class TriangulateWidget(QtGui.QWidget):
         tmp_img_list.insert(1, img)
         self.display.pointSets.insert(curr_num, [])
         tmp_img_list.UpdateLinks()
-        self.goToNextImage()
+        self.go_to_next_image()
 
     def rec_holo_no_ref_1(self):
         holo_img = self.display.image
@@ -1140,7 +1143,7 @@ class TriangulateWidget(QtGui.QWidget):
     #         self.display.pointSets.insert(curr_num, [])
     #
     #     tmp_img_list.UpdateLinks()
-    #     self.goToNextImage()
+    #     self.go_to_next_image()
 
     def rec_holo_with_ref(self):
         pass
@@ -1184,7 +1187,7 @@ class TriangulateWidget(QtGui.QWidget):
 
         ps = self.display.pointSets
         ps[curr_idx-1], ps[curr_idx] = ps[curr_idx], ps[curr_idx-1]
-        self.goToNextImage()
+        self.go_to_next_image()
 
     def swap_right(self):
         curr_img = self.display.image
@@ -1203,7 +1206,7 @@ class TriangulateWidget(QtGui.QWidget):
 
         ps = self.display.pointSets
         ps[curr_idx], ps[curr_idx+1] = ps[curr_idx+1], ps[curr_idx]
-        self.goToPrevImage()
+        self.go_to_prev_image()
 
     def plot_profile(self):
         curr_img = self.display.image
