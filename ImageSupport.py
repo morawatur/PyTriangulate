@@ -1209,10 +1209,14 @@ def restore_img_mt_dt(img, mt, dt):
 #-------------------------------------------------------------------
 
 def flip_image_h(img):
-    mt, dt = move_to_ri_cpu(img)
-    re_im_flip = np.copy(np.fliplr(img.reIm))
-    img.reIm = np.copy(re_im_flip)
-    restore_img_mt_dt(img, mt, dt)
+    # mt, dt = move_to_ri_cpu(img)
+    # re_im_flip = np.copy(np.fliplr(img.reIm))
+    # img.reIm = np.copy(re_im_flip)
+    am_flip = np.copy(np.fliplr(img.amPh.am))
+    ph_flip = np.copy(np.fliplr(img.amPh.ph))
+    img.amPh.am = np.copy(am_flip)
+    img.amPh.ph = np.copy(ph_flip)
+    # restore_img_mt_dt(img, mt, dt)
 
 #-------------------------------------------------------------------
 

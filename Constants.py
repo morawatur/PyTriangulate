@@ -1,4 +1,4 @@
-dimSize = 2048
+dimSize = 1024
 pxWidth = 359.122e-12
 ewfLambda = 1.97e-12
 ccWidgetDim = 768

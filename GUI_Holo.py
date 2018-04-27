@@ -157,6 +157,8 @@ class PlotWidget(QtGui.QWidget):
         self.canvas.draw()
 
     def getXYDataOnClick(self, event):
+        if event.xdata is None or event.ydata is None:
+            return
         if len(self.markedPoints) == 2:
             for pt in self.markedPoints:
                 pt.remove()
@@ -410,6 +412,9 @@ class TriangulateWidget(QtGui.QWidget):
         filter_contours_button = QtGui.QPushButton('Filter contours', self)
         filter_contours_button.clicked.connect(self.filter_contours)
 
+        norm_phase_button = QtGui.QPushButton('Normalise phase', self)
+        norm_phase_button.clicked.connect(self.norm_phase)
+
         grid_nav = QtGui.QGridLayout()
         grid_nav.addWidget(prev_button, 0, 0)
         grid_nav.addWidget(next_button, 0, 1)
@@ -486,6 +491,7 @@ class TriangulateWidget(QtGui.QWidget):
         grid_plot.addWidget(threshold_label, 0, 2)
         grid_plot.addWidget(self.threshold_input, 1, 2)
         grid_plot.addWidget(filter_contours_button, 2, 2)
+        grid_plot.addWidget(norm_phase_button, 3, 1)
 
         vbox_panel = QtGui.QVBoxLayout()
         vbox_panel.addLayout(grid_nav)
@@ -662,6 +668,22 @@ class TriangulateWidget(QtGui.QWidget):
         new_phs = (curr_img.amPh.ph - uw_min) % (2 * np.pi) - np.pi
 
         curr_img.amPh.ph = np.copy(new_phs)
+        self.update_display()
+
+    def norm_phase(self):
+        curr_img = self.display.image
+        curr_idx = curr_img.numInSeries - 1
+        if len(self.display.pointSets[curr_idx]) == 0:
+            print('Mark the reference point on the image')
+            return
+        pt_disp = self.display.pointSets[curr_idx][0]
+        pt_real = CalcRealTLCoords(curr_img.width, pt_disp)
+
+        first_img = imsup.GetFirstImage(curr_img)
+        img_list = imsup.CreateImageListFromFirstImage(first_img)
+        for img in img_list:
+            new_phs = norm_phase_to_pt(img.amPh.ph, pt_real)
+            img.amPh.ph = np.copy(new_phs)
         self.update_display()
 
     def zoom_n_fragments(self):
@@ -1343,7 +1365,9 @@ def LoadImageSeriesFromFirstFile(imgPath):
         imgData = np.abs(imgData)
         img = imsup.ImageWithBuffer(imgData.shape[0], imgData.shape[1], imsup.Image.cmp['CAP'], imsup.Image.mem['CPU'],
                                     num=imgNum, px_dim_sz=pxDims[0])
-        img.LoadAmpData(np.sqrt(imgData).astype(np.float32))
+        # img.LoadAmpData(np.sqrt(imgData).astype(np.float32))
+        img.LoadAmpData(imgData.astype(np.float32))
+        # img.amPh.ph = np.copy(img.amPh.am)
         # ---
         # imsup.RemovePixelArtifacts(img, const.minPxThreshold, const.maxPxThreshold)
         # imsup.RemovePixelArtifacts(img, 0.7, 1.3)
@@ -1385,6 +1409,16 @@ def modify_image(img, mod=list([0, 0]), is_shift=True):
         mod_img = tr.RotateImageSki(img, mod[0])
 
     return mod_img
+
+# --------------------------------------------------------
+
+def norm_phase_to_pt(phase, pt):
+    y, x = pt
+    print(y, x)
+    print(phase[y, x])
+    phase_norm = phase - phase[y, x]
+    print(phase_norm[y, x])
+    return phase_norm
 
 # --------------------------------------------------------
 
