@@ -65,15 +65,19 @@ class LabelExt(QtGui.QLabel):
             lab.move(pos.x()+4, pos.y()+4)
             lab.show()
 
-    def setImage(self, dispAmp=True, logScale=False, color=False):
+    def setImage(self, dispAmp=True, dispPhs=False, logScale=False, color=False):
         self.image.MoveToCPU()
 
         if dispAmp:
             self.image.buffer = np.copy(self.image.amPh.am)
             if logScale:
                 self.image.buffer = np.log(self.image.buffer)
-        else:
+        elif dispPhs:
             self.image.buffer = np.copy(self.image.amPh.ph)
+        else:
+            if self.image.cos_phase is None:
+                self.image.update_cos_phase()
+            self.image.buffer = np.copy(self.image.cos_phase)
 
         q_image = QtGui.QImage(imsup.ScaleImage(self.image.buffer, 0.0, 255.0).astype(np.uint8),
                                self.image.width, self.image.height, QtGui.QImage.Format_Indexed8)
@@ -96,7 +100,7 @@ class LabelExt(QtGui.QLabel):
         self.setPixmap(pixmap)
         self.repaint()
 
-    def changeImage(self, toNext=True, dispAmp=True, logScale=False, dispLabs=True, color=False):
+    def changeImage(self, toNext=True, dispAmp=True, dispPhs=False, logScale=False, dispLabs=True, color=False):
         newImage = self.image.next if toNext else self.image.prev
         if newImage is None:
             return
@@ -106,7 +110,7 @@ class LabelExt(QtGui.QLabel):
 
         if len(self.pointSets) < self.image.numInSeries:
             self.pointSets.append([])
-        self.setImage(dispAmp, logScale, color)
+        self.setImage(dispAmp, dispPhs, logScale, color)
 
         labsToDel = self.children()
         for child in labsToDel:
@@ -174,6 +178,9 @@ class TriangulateWidget(QtGui.QWidget):
     def __init__(self):
         super(TriangulateWidget, self).__init__()
         imagePath = QtGui.QFileDialog.getOpenFileName()
+        if imagePath == '':
+            print('No images to read. Exiting...')
+            exit()
         image = LoadImageSeriesFromFirstFile(imagePath)
         self.display = LabelExt(self, image)
         self.plot_widget = PlotWidget()
@@ -341,22 +348,25 @@ class TriangulateWidget(QtGui.QWidget):
         self.log_scale_checkbox.setChecked(False)
         self.log_scale_checkbox.toggled.connect(self.update_display)
 
-        unwrap_button = QtGui.QPushButton('Unwrap phase', self)
-        wrap_button = QtGui.QPushButton('Wrap phase', self)
+        unwrap_button = QtGui.QPushButton('Unwrap', self)
+        wrap_button = QtGui.QPushButton('Wrap', self)
 
         unwrap_button.clicked.connect(self.unwrap_img_phase)
         wrap_button.clicked.connect(self.wrap_img_phase)
 
         self.amp_radio_button = QtGui.QRadioButton('Amplitude', self)
         self.phs_radio_button = QtGui.QRadioButton('Phase', self)
+        self.cos_phs_radio_button = QtGui.QRadioButton('Phase cosine', self)
         self.amp_radio_button.setChecked(True)
 
         self.amp_radio_button.toggled.connect(self.update_display)
         self.phs_radio_button.toggled.connect(self.update_display)
+        self.cos_phs_radio_button.toggled.connect(self.update_display)
 
         amp_phs_group = QtGui.QButtonGroup(self)
         amp_phs_group.addButton(self.amp_radio_button)
         amp_phs_group.addButton(self.phs_radio_button)
+        amp_phs_group.addButton(self.cos_phs_radio_button)
 
         self.gray_radio_button = QtGui.QRadioButton('Grayscale', self)
         self.color_radio_button = QtGui.QRadioButton('Color', self)
@@ -368,6 +378,14 @@ class TriangulateWidget(QtGui.QWidget):
         color_group = QtGui.QButtonGroup(self)
         color_group.addButton(self.gray_radio_button)
         color_group.addButton(self.color_radio_button)
+
+        hbox_unwrap_gray = QtGui.QHBoxLayout()
+        hbox_unwrap_gray.addWidget(unwrap_button)
+        hbox_unwrap_gray.addWidget(self.gray_radio_button)
+
+        hbox_wrap_color = QtGui.QHBoxLayout()
+        hbox_wrap_color.addWidget(wrap_button)
+        hbox_wrap_color.addWidget(self.color_radio_button)
 
         fname_label = QtGui.QLabel('File name', self)
         self.fname_input = QtGui.QLineEdit(self.display.image.name, self)
@@ -412,7 +430,7 @@ class TriangulateWidget(QtGui.QWidget):
         filter_contours_button = QtGui.QPushButton('Filter contours', self)
         filter_contours_button.clicked.connect(self.filter_contours)
 
-        norm_phase_button = QtGui.QPushButton('Normalise phase', self)
+        norm_phase_button = QtGui.QPushButton('Normalize phase', self)
         norm_phase_button.clicked.connect(self.norm_phase)
 
         grid_nav = QtGui.QGridLayout()
@@ -436,14 +454,14 @@ class TriangulateWidget(QtGui.QWidget):
         grid_disp.addWidget(self.log_scale_checkbox, 3, 0)
         grid_disp.addWidget(self.amp_radio_button, 1, 1)
         grid_disp.addWidget(self.phs_radio_button, 2, 1)
-        grid_disp.addWidget(self.gray_radio_button, 1, 2)
-        grid_disp.addWidget(self.color_radio_button, 2, 2)
-        grid_disp.addWidget(unwrap_button, 3, 1)
-        grid_disp.addWidget(wrap_button, 3, 2)
-        grid_disp.addWidget(fname_label, 0, 3)
-        grid_disp.addWidget(self.fname_input, 1, 3)
-        grid_disp.addWidget(export_button, 2, 3)
-        grid_disp.addWidget(export_all_button, 3, 3)
+        grid_disp.addWidget(self.cos_phs_radio_button, 3, 1)
+        grid_disp.addLayout(hbox_unwrap_gray, 1, 2)
+        grid_disp.addLayout(hbox_wrap_color, 2, 2)
+        grid_disp.addWidget(norm_phase_button, 3, 2)
+        grid_disp.addWidget(fname_label, 0, 4)
+        grid_disp.addWidget(self.fname_input, 1, 4)
+        grid_disp.addWidget(export_button, 2, 4)
+        grid_disp.addWidget(export_all_button, 3, 4)
 
         vbox_sh_rot_rb = QtGui.QVBoxLayout()
         vbox_sh_rot_rb.addWidget(self.shift_radio_button)
@@ -491,7 +509,7 @@ class TriangulateWidget(QtGui.QWidget):
         grid_plot.addWidget(threshold_label, 0, 2)
         grid_plot.addWidget(self.threshold_input, 1, 2)
         grid_plot.addWidget(filter_contours_button, 2, 2)
-        grid_plot.addWidget(norm_phase_button, 3, 1)
+        # grid_plot.addWidget(norm_phase_button, 3, 1)
 
         vbox_panel = QtGui.QVBoxLayout()
         vbox_panel.addLayout(grid_nav)
@@ -551,6 +569,7 @@ class TriangulateWidget(QtGui.QWidget):
 
     def go_to_prev_image(self):
         is_amp_checked = self.amp_radio_button.isChecked()
+        is_phs_checked = self.phs_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
@@ -559,10 +578,12 @@ class TriangulateWidget(QtGui.QWidget):
             self.fname_input.setText(self.display.image.prev.name)
             self.manual_mode_checkbox.setChecked(False)
             self.disable_manual_panel()
-        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
+        self.display.changeImage(toNext=False, dispAmp=is_amp_checked, dispPhs=is_phs_checked,
+                                 logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
     def go_to_next_image(self):
         is_amp_checked = self.amp_radio_button.isChecked()
+        is_phs_checked = self.phs_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_show_labels_checked = self.show_labels_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
@@ -571,7 +592,8 @@ class TriangulateWidget(QtGui.QWidget):
             self.fname_input.setText(self.display.image.next.name)
             self.manual_mode_checkbox.setChecked(False)
             self.disable_manual_panel()
-        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
+        self.display.changeImage(toNext=True, dispAmp=is_amp_checked, dispPhs=is_phs_checked,
+                                 logScale=is_log_scale_checked, dispLabs=is_show_labels_checked, color=is_color_checked)
 
     def flip_image_h(self):
         imsup.flip_image_h(self.display.image)
@@ -581,6 +603,7 @@ class TriangulateWidget(QtGui.QWidget):
         curr_num = self.display.image.numInSeries
         fname = self.fname_input.text()
         is_amp_checked = self.amp_radio_button.isChecked()
+        is_phs_checked = self.phs_radio_button.isChecked()
 
         log = True if self.log_scale_checkbox.isChecked() else False
         color = True if self.color_radio_button.isChecked() else False
@@ -588,10 +611,16 @@ class TriangulateWidget(QtGui.QWidget):
         if fname == '':
             fname = 'amp{0}'.format(curr_num) if is_amp_checked else 'phs{0}'.format(curr_num)
 
+        curr_img = self.display.image
         if is_amp_checked:
-            imsup.SaveAmpImage(self.display.image, '{0}.png'.format(fname), log, color)
+            imsup.SaveAmpImage(curr_img, '{0}.png'.format(fname), log, color)
+        elif is_phs_checked:
+            imsup.SavePhaseImage(curr_img, '{0}.png'.format(fname), log, color)
         else:
-            imsup.SavePhaseImage(self.display.image, '{0}.png'.format(fname), log, color)
+            phs_tmp = np.copy(curr_img.amPh.ph)
+            curr_img.amPh.ph = np.cos(phs_tmp)
+            imsup.SavePhaseImage(curr_img, '{0}.png'.format(fname), log, color)
+            curr_img.amPh.ph = np.copy(phs_tmp)
         print('Saved image as "{0}.png"'.format(fname))
 
     def export_all(self):
@@ -649,9 +678,10 @@ class TriangulateWidget(QtGui.QWidget):
 
     def update_display(self):
         is_amp_checked = self.amp_radio_button.isChecked()
+        is_phs_checked = self.phs_radio_button.isChecked()
         is_log_scale_checked = self.log_scale_checkbox.isChecked()
         is_color_checked = self.color_radio_button.isChecked()
-        self.display.setImage(dispAmp=is_amp_checked, logScale=is_log_scale_checked, color=is_color_checked)
+        self.display.setImage(dispAmp=is_amp_checked, dispPhs=is_phs_checked, logScale=is_log_scale_checked, color=is_color_checked)
 
     def unwrap_img_phase(self):
         curr_img = self.display.image
@@ -684,7 +714,9 @@ class TriangulateWidget(QtGui.QWidget):
         for img in img_list:
             new_phs = norm_phase_to_pt(img.amPh.ph, pt_real)
             img.amPh.ph = np.copy(new_phs)
+            img.update_cos_phase()
         self.update_display()
+        print('All phases normalized')
 
     def zoom_n_fragments(self):
         curr_idx = self.display.image.numInSeries - 1
@@ -1189,8 +1221,10 @@ class TriangulateWidget(QtGui.QWidget):
         amp_factor = float(self.amp_factor_input.text())
 
         phs_amplified = imsup.copy_am_ph_image(curr_img)
-        phs_amplified.amPh.ph = np.cos(amp_factor * curr_img.amPh.ph)
+        phs_amplified.amPh.ph *= amp_factor
+        phs_amplified.update_cos_phase()
         self.insert_img_after_curr(phs_amplified)
+        self.cos_phs_radio_button.setChecked(True)
 
     def swap_left(self):
         curr_img = self.display.image
@@ -1274,11 +1308,13 @@ class TriangulateWidget(QtGui.QWidget):
         # calculate projection of intensity
         if self.amp_radio_button.isChecked():
             int_matrix = np.copy(img_cropped.amPh.am)
-        else:
+        elif self.phs_radio_button.isChecked():
             ph_min = np.min(img_cropped.amPh.ph)
             ph_fix = -ph_min if ph_min < 0 else 0
             img_cropped.amPh.ph += ph_fix
             int_matrix = np.copy(img_cropped.amPh.ph)
+        else:
+            int_matrix = np.copy(img_cropped.cos_phase)
         int_profile = np.sum(int_matrix, proj_dir)  # 0 - horizontal projection, 1 - vertical projection
         dists = np.arange(0, int_profile.shape[0], 1) * px_sz
         dists *= 1e9
@@ -1414,10 +1450,7 @@ def modify_image(img, mod=list([0, 0]), is_shift=True):
 
 def norm_phase_to_pt(phase, pt):
     y, x = pt
-    print(y, x)
-    print(phase[y, x])
     phase_norm = phase - phase[y, x]
-    print(phase_norm[y, x])
     return phase_norm
 
 # --------------------------------------------------------

@@ -291,6 +291,8 @@ def shift_am_ph_image(img, shift):
 
     img.ChangeMemoryType(mt)
     img_shifted.ChangeMemoryType(mt)
+    if img.cos_phase is not None:
+        img_shifted.update_cos_phase()
     return img_shifted
 
 #-------------------------------------------------------------------
